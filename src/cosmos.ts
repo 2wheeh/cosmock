@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import { execSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 import { x } from 'tinyexec'
@@ -112,10 +112,14 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
         const account = accounts[i]
         const keyName = account.name || `test-${i}`
 
-        execSync(
-          `echo "${account.mnemonic}" | ${binary} keys add ${keyName} --recover --keyring-backend test --home ${homeDir}`,
-          { stdio: 'pipe' },
-        )
+        const result = spawnSync(binary, [
+          'keys', 'add', keyName, '--recover',
+          '--keyring-backend', 'test', '--home', homeDir!,
+        ], { input: account.mnemonic + '\n', stdio: ['pipe', 'pipe', 'pipe'] })
+
+        if (result.status !== 0) {
+          throw new Error(`Failed to recover key "${keyName}": ${result.stderr?.toString()}`)
+        }
 
         await run([
           'genesis', 'add-genesis-account', keyName,

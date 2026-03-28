@@ -95,8 +95,15 @@ export function define<P = undefined>(
   fn: DefineFn<P>,
 ): (...args: P extends undefined ? [options?: InstanceOptions] : [parameters: P, options?: InstanceOptions]) => Instance {
   return (...[parametersOrOptions, options_]: any[]) => {
-    const parameters = parametersOrOptions as P
-    const options: InstanceOptions = options_ || parametersOrOptions || {}
+    const isInstanceOptions = (v: any): v is InstanceOptions =>
+      v != null && typeof v === 'object' && ('messageBuffer' in v || 'timeout' in v)
+
+    // When P = undefined: (options?) → first arg is options
+    // When P is defined: (params, options?) → first arg is params, second is options
+    const parameters = (options_ !== undefined || !isInstanceOptions(parametersOrOptions)
+      ? parametersOrOptions
+      : undefined) as P
+    const options: InstanceOptions = options_ ?? (isInstanceOptions(parametersOrOptions) ? parametersOrOptions : {})
 
     const instance = fn(parameters)
     const { name, start, stop } = instance
@@ -139,9 +146,9 @@ export function define<P = undefined>(
         if (status !== 'idle' && status !== 'stopped')
           throw new Error(`Instance "${name}" is not in an idle or stopped state. Status: ${status}`)
 
+        let startTimer: ReturnType<typeof setTimeout> | undefined
         if (typeof timeout === 'number') {
-          const timer = setTimeout(() => {
-            clearTimeout(timer)
+          startTimer = setTimeout(() => {
             startResolver.reject(new Error(`Instance "${name}" failed to start in time.`))
           }, timeout)
         }
@@ -163,11 +170,13 @@ export function define<P = undefined>(
           },
         )
           .then(() => {
+            if (startTimer) clearTimeout(startTimer)
             status = 'started'
             stopResolver = Promise.withResolvers<void>()
             startResolver.resolve(self.stop.bind(self))
           })
           .catch((error) => {
+            if (startTimer) clearTimeout(startTimer)
             status = 'idle'
             self.messages.clear()
             emitter.off('message', onMessage)
@@ -181,9 +190,9 @@ export function define<P = undefined>(
         if (status === 'stopping') return stopResolver.promise
         if (status === 'starting') throw new Error(`Instance "${name}" is starting.`)
 
+        let stopTimer: ReturnType<typeof setTimeout> | undefined
         if (typeof timeout === 'number') {
-          const timer = setTimeout(() => {
-            clearTimeout(timer)
+          stopTimer = setTimeout(() => {
             stopResolver.reject(new Error(`Instance "${name}" failed to stop in time.`))
           }, timeout)
         }
@@ -194,6 +203,7 @@ export function define<P = undefined>(
           status: self.status,
         })
           .then((...args) => {
+            if (stopTimer) clearTimeout(stopTimer)
             status = 'stopped'
             self.messages.clear()
             emitter.off('message', onMessage)
@@ -203,6 +213,7 @@ export function define<P = undefined>(
             stopResolver.resolve(...args)
           })
           .catch((error) => {
+            if (stopTimer) clearTimeout(stopTimer)
             status = 'started'
             stopResolver.reject(error)
           })

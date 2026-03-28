@@ -108,7 +108,7 @@ await Promise.all([chain1.start(), chain2.start()])
 ### Custom chain binary
 
 ```ts
-import { Instance } from 'cosmock'
+import { Instance, cosmosBase } from 'cosmock'
 
 // Any Cosmos SDK binary works — same init/genesis/start flow
 const gaiad = Instance.define((params) =>
@@ -137,6 +137,17 @@ Creates a simd instance.
 | `p2pPort` | `number` | `26656` | P2P port |
 | `grpcWebPort` | `number` | `9091` | gRPC-Web port |
 | `pprofPort` | `number` | `6060` | pprof port |
+
+### Instance options (second argument)
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `messageBuffer` | `number` | `20` | Max messages to store in-memory |
+| `timeout` | `number` | `60000` | Start/stop timeout in milliseconds |
+
+```ts
+const instance = Instance.simd({ chainId: 'test-1' }, { timeout: 30_000 })
+```
 
 ### Instance methods
 

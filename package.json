@@ -26,14 +26,21 @@
     "simd",
     "cosmjs"
   ],
-  "author": "",
+  "author": "wonhee",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/2wheeh/cosmock"
+  },
+  "homepage": "https://github.com/2wheeh/cosmock#readme",
+  "bugs": {
+    "url": "https://github.com/2wheeh/cosmock/issues"
+  },
   "packageManager": "pnpm@10.30.3",
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "get-port": "^7.1.0",
     "mitt": "^3.0.1",
     "tinyexec": "^0.3.2"
   },

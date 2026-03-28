@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      get-port:
-        specifier: ^7.1.0
-        version: 7.2.0
       mitt:
         specifier: ^3.0.1
         version: 3.0.1
@@ -508,10 +505,6 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
-
-  get-port@7.2.0:
-    resolution: {integrity: sha512-afP4W205ONCuMoPBqcR6PSXnzX35KTcJygfJfcp+QY+uwm3p20p1YczWXhlICIzGMCxYBQcySEcOgsJcrkyobg==}
-    engines: {node: '>=16'}
 
   globalthis@1.0.4:
     resolution: {integrity: sha512-DpLKbNU4WylpxJykQujfCcwYWiV/Jhm50Goo0wrVILAv5jOr9d+H+UR3PhSCD2rCCEIg0uc+G+muBTwD54JhDQ==}
@@ -1122,8 +1115,6 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
-
-  get-port@7.2.0: {}
 
   globalthis@1.0.4:
     dependencies:
