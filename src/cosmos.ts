@@ -15,11 +15,8 @@ export type CosmosAccount = {
   name?: string
 }
 
-export type CosmosBaseParameters = {
-  /** Path to the binary. */
-  binary: string
-  /** Instance name. */
-  name: string
+/** Common parameters shared by all Cosmos SDK chain instances. */
+export type CosmosChainParameters = {
   /** Chain ID. @default "cosmock-1" */
   chainId?: string
   /** Default denom. @default "stake" */
@@ -40,6 +37,14 @@ export type CosmosBaseParameters = {
   grpcWebPort?: number
   /** pprof listen port. @default 6060 */
   pprofPort?: number
+}
+
+/** Internal parameters for cosmosBase. Extends CosmosChainParameters with binary, name, and hooks. */
+export type CosmosBaseParameters = CosmosChainParameters & {
+  /** Path to the binary. */
+  binary: string
+  /** Instance name. */
+  name: string
   /** Hook to patch genesis after default denom patching. */
   patchGenesis?: (genesis: any) => any
 }

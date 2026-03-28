@@ -2,6 +2,7 @@ import mitt, { type Emitter, type Handler } from 'mitt'
 import type { EventTypes } from './process.js'
 
 export { simd } from './instances/simd.js'
+export { wasmd } from './instances/wasmd.js'
 
 export type InstanceStatus =
   | 'idle'

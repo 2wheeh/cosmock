@@ -45,6 +45,7 @@
     "tinyexec": "^0.3.2"
   },
   "devDependencies": {
+    "@cosmjs/cosmwasm-stargate": "^0.38.1",
     "@cosmjs/proto-signing": "^0.38.1",
     "@cosmjs/stargate": "^0.38.1",
     "@types/node": "^25.5.0",

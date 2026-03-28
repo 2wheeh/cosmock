@@ -15,6 +15,9 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
     devDependencies:
+      '@cosmjs/cosmwasm-stargate':
+        specifier: ^0.38.1
+        version: 0.38.1
       '@cosmjs/proto-signing':
         specifier: ^0.38.1
         version: 0.38.1
@@ -35,6 +38,12 @@ packages:
 
   '@cosmjs/amino@0.38.1':
     resolution: {integrity: sha512-WaThDpq2JwUyKuazq08Xa+FHzQ3jh1HcYnGL4xsyfqFwOlAvnl0EDvSSz9WSwz1oopIxFE9Qtf3OUKOlxBZbYA==}
+
+  '@cosmjs/cosmwasm-stargate@0.38.1':
+    resolution: {integrity: sha512-uiDaN1FHjcOYfStv6fuTp2g7F7ktwjlUdbVyNtOnaG/NO77s4vGOdITz5iJRJocaDUUwKAJT3pEdlzWVrAA0Rg==}
+
+  '@cosmjs/cosmwasm@0.38.1':
+    resolution: {integrity: sha512-HeGBMV9IjSCr6r0LzJshJq1SH+Ryot496g/dmHBA41p95NMY8H103qfVOmpH/7XkVs9oRlGKHl4xxMBnNlW6jA==}
 
   '@cosmjs/crypto@0.38.1':
     resolution: {integrity: sha512-r1KQCjKAdMga2aZ/nkgULRF4fisPZMF6ErucVsMmkASBgDl0k9/vD9K9fHUdGClMv0oOYEfwOT/UTBR7K2OuYA==}
@@ -726,6 +735,28 @@ snapshots:
       '@cosmjs/encoding': 0.38.1
       '@cosmjs/math': 0.38.1
       '@cosmjs/utils': 0.38.1
+
+  '@cosmjs/cosmwasm-stargate@0.38.1':
+    dependencies:
+      '@cosmjs/cosmwasm': 0.38.1
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@cosmjs/cosmwasm@0.38.1':
+    dependencies:
+      '@cosmjs/amino': 0.38.1
+      '@cosmjs/crypto': 0.38.1
+      '@cosmjs/encoding': 0.38.1
+      '@cosmjs/math': 0.38.1
+      '@cosmjs/proto-signing': 0.38.1
+      '@cosmjs/stargate': 0.38.1
+      '@cosmjs/tendermint-rpc': 0.38.1
+      '@cosmjs/utils': 0.38.1
+      cosmjs-types: 0.11.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   '@cosmjs/crypto@0.38.1':
     dependencies:
