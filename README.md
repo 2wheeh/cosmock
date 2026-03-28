@@ -8,12 +8,19 @@ Inspired by [prool](https://github.com/wevm/prool) (HTTP testing instances for E
 
 ## Features
 
-- Spawn real Cosmos SDK nodes (simd) as child processes
+- Spawn real Cosmos SDK nodes as child processes
 - No Docker, no Kubernetes — just a Go binary
 - Genesis account injection with mnemonic recovery
 - Full lifecycle management (start/stop/restart)
-- Compatible with [@cosmjs/stargate](https://github.com/cosmos/cosmjs) for testing
-- Extensible to any Cosmos SDK chain binary (gaiad, osmosisd, etc.)
+- Compatible with [@cosmjs/stargate](https://github.com/cosmos/cosmjs) and [@cosmjs/cosmwasm-stargate](https://github.com/cosmos/cosmjs) for testing
+- Extensible to any Cosmos SDK chain binary via `cosmosBase`
+
+## Instances
+
+| Instance | Binary | Modules | Use case |
+|---|---|---|---|
+| `Instance.simd()` | `simd` | bank, staking, gov, mint | Basic Cosmos SDK testing |
+| `Instance.wasmd()` | `wasmd` | bank, staking, gov, mint, **IBC**, **CosmWasm** | Contract deploy/execute, IBC |
 
 ## Install
 
@@ -23,20 +30,26 @@ pnpm add -D cosmock
 
 ### Prerequisites
 
-simd binary (ibc-go simapp):
+Install the binary for the instance you need:
+
+**simd** (Cosmos SDK simapp):
 
 ```bash
-go install cosmossdk.io/simapp/simd@latest
-```
-
-Or build from source if `go install` fails due to replace directives:
-
-```bash
+# go install may fail due to replace directives, build from source:
 git clone --depth 1 https://github.com/cosmos/cosmos-sdk.git /tmp/cosmos-sdk
 cd /tmp/cosmos-sdk/simapp && go build -o ~/go/bin/simd ./simd/
 ```
 
+**wasmd** (CosmWasm — includes IBC):
+
+```bash
+git clone --depth 1 https://github.com/CosmWasm/wasmd.git /tmp/wasmd
+cd /tmp/wasmd && go build -o ~/go/bin/wasmd ./cmd/wasmd/
+```
+
 ## Usage
+
+### Basic (simd)
 
 ```ts
 import { Instance } from 'cosmock'
@@ -46,7 +59,7 @@ const instance = Instance.simd({
   denom: 'stake',
   accounts: [
     {
-      mnemonic: 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+      mnemonic: 'abandon abandon abandon ...',
       coins: '1000000000stake',
       name: 'alice',
     },
@@ -63,6 +76,31 @@ const balance = await client.getBalance(address, 'stake')
 await instance.stop()
 ```
 
+### CosmWasm (wasmd)
+
+```ts
+import { Instance } from 'cosmock'
+import { SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate'
+import { GasPrice } from '@cosmjs/stargate'
+
+const instance = Instance.wasmd({
+  chainId: 'wasm-test-1',
+  accounts: [{ mnemonic: '...', coins: '1000000000stake', name: 'alice' }],
+})
+await instance.start()
+
+const client = await SigningCosmWasmClient.connectWithSigner(
+  `http://localhost:${instance.port}`,
+  wallet,
+  { gasPrice: GasPrice.fromString('0stake') },
+)
+
+// Upload, instantiate, execute
+const { codeId } = await client.upload(address, wasmBytecode, 'auto')
+const { contractAddress } = await client.instantiate(address, codeId, initMsg, 'label', 'auto')
+const result = await client.execute(address, contractAddress, executeMsg, 'auto')
+```
+
 ### vitest globalSetup
 
 ```ts
@@ -70,7 +108,7 @@ await instance.stop()
 import { Instance } from 'cosmock'
 
 export default async function () {
-  const instance = Instance.simd({
+  const instance = Instance.wasmd({
     chainId: 'test-1',
     accounts: [
       { mnemonic: '...', coins: '1000000000stake' },
@@ -86,16 +124,16 @@ export default async function () {
 ### Multi-chain
 
 ```ts
-const chain1 = Instance.simd({
-  chainId: 'cosmos-1',
+const chain1 = Instance.wasmd({
+  chainId: 'wasm-1',
   rpcPort: 26657,
   grpcPort: 9090,
   apiPort: 1317,
   p2pPort: 26656,
 })
 
-const chain2 = Instance.simd({
-  chainId: 'cosmos-2',
+const chain2 = Instance.wasmd({
+  chainId: 'wasm-2',
   rpcPort: 26660,
   grpcPort: 9092,
   apiPort: 1318,
@@ -118,15 +156,21 @@ const gaiad = Instance.define((params) =>
 
 ## API
 
-### `Instance.simd(parameters?)`
+### `Instance.simd(parameters?, options?)`
 
-Creates a simd instance.
+Creates a simd (Cosmos SDK simapp) instance.
 
-**Parameters:**
+### `Instance.wasmd(parameters?, options?)`
+
+Creates a wasmd (CosmWasm + IBC) instance. Same parameters as simd.
+
+### Parameters
+
+Shared by all instances (`CosmosChainParameters`):
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `binary` | `string` | `"simd"` | Path to binary |
+| `binary` | `string` | instance-specific | Path to binary |
 | `chainId` | `string` | `"cosmock-1"` | Chain ID |
 | `denom` | `string` | `"stake"` | Default denom |
 | `accounts` | `CosmosAccount[]` | `[]` | Genesis accounts |
@@ -146,7 +190,7 @@ Creates a simd instance.
 | `timeout` | `number` | `60000` | Start/stop timeout in milliseconds |
 
 ```ts
-const instance = Instance.simd({ chainId: 'test-1' }, { timeout: 30_000 })
+const instance = Instance.wasmd({ chainId: 'test-1' }, { timeout: 30_000 })
 ```
 
 ### Instance methods
@@ -188,6 +232,13 @@ Recommended: fund multiple accounts in genesis, assign each test its own account
 | Dependencies | K8s cluster | Go binary |
 | State reset | Helm redeploy (minutes) | kill + restart (~3s) |
 | Best for | Production simulation | Dev/test |
+
+## TODO
+
+- [ ] IBC testing with [Hermes](https://github.com/informalsystems/hermes) relayer instance
+- [ ] Automatic port allocation (avoid port conflicts in parallel tests)
+- [ ] vitest globalSetup helper function
+- [ ] Prebuilt binary downloads (skip Go toolchain requirement)
 
 ## License
 
