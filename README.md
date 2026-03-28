@@ -114,13 +114,14 @@ const { contractAddress } = await client.instantiate(address, codeId, initMsg, '
 const result = await client.execute(address, contractAddress, executeMsg, 'auto')
 ```
 
-### vitest globalSetup
+### vitest globalSetup (provide/inject)
 
 ```ts
-// test/setup.ts
+// test/global-setup.ts
+import type { TestProject } from 'vitest/node'
 import { Instance } from 'cosmock'
 
-export default async function () {
+export default async function setup({ provide }: TestProject) {
   const instance = Instance.wasmd({
     chainId: 'test-1',
     accounts: [
@@ -128,10 +129,39 @@ export default async function () {
     ],
   })
   await instance.start()
-  process.env.COSMOS_RPC_URL = `http://localhost:${instance.port}`
+
+  provide('rpcUrl', `http://localhost:${instance.port}`)
 
   return () => instance.stop()
 }
+
+declare module 'vitest' {
+  export interface ProvidedContext {
+    rpcUrl: string
+  }
+}
+```
+
+```ts
+// vitest.config.ts
+export default defineConfig({
+  test: {
+    globalSetup: './test/global-setup.ts',
+  },
+})
+```
+
+```ts
+// test/bank.test.ts
+import { inject } from 'vitest'
+
+const rpcUrl = inject('rpcUrl')
+
+it('queries balance', async () => {
+  const client = await StargateClient.connect(rpcUrl)
+  const balance = await client.getBalance(address, 'stake')
+  // ...
+})
 ```
 
 ### Multi-chain
