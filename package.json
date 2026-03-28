@@ -1,6 +1,6 @@
 {
   "name": "cosmock",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Lightweight Cosmos SDK test instances via child processes",
   "type": "module",
   "exports": {
