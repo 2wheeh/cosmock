@@ -1,0 +1,47 @@
+{
+  "name": "cosmock",
+  "version": "0.0.1",
+  "description": "Lightweight Cosmos SDK test instances via child processes",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "src",
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.app.json",
+    "check": "tsc -b",
+    "test": "vitest"
+  },
+  "keywords": [
+    "cosmos",
+    "testing",
+    "simd",
+    "cosmjs"
+  ],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "get-port": "^7.1.0",
+    "mitt": "^3.0.1",
+    "tinyexec": "^0.3.2"
+  },
+  "devDependencies": {
+    "@cosmjs/proto-signing": "^0.38.1",
+    "@cosmjs/stargate": "^0.38.1",
+    "@types/node": "^25.5.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
