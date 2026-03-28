@@ -1,0 +1,241 @@
+import fs from 'node:fs'
+import { execSync } from 'node:child_process'
+import os from 'node:os'
+import path from 'node:path'
+import { x } from 'tinyexec'
+import * as Instance from './Instance.js'
+import { createProcess } from './process.js'
+
+export type CosmosAccount = {
+  /** BIP39 mnemonic for key derivation. */
+  mnemonic: string
+  /** Coins to fund (e.g. "1000000000stake"). */
+  coins: string
+  /** Account name for keyring. @default "test-{index}" */
+  name?: string
+}
+
+export type CosmosBaseParameters = {
+  /** Path to the binary. */
+  binary: string
+  /** Instance name. */
+  name: string
+  /** Chain ID. @default "cosmock-1" */
+  chainId?: string
+  /** Default denom. @default "stake" */
+  denom?: string
+  /** Accounts to fund in genesis. */
+  accounts?: CosmosAccount[]
+  /** Minimum gas prices. @default "0{denom}" */
+  minimumGasPrices?: string
+  /** RPC listen address port. @default 26657 */
+  rpcPort?: number
+  /** gRPC listen port. @default 9090 */
+  grpcPort?: number
+  /** API (REST) listen port. @default 1317 */
+  apiPort?: number
+  /** P2P listen port. @default 26656 */
+  p2pPort?: number
+  /** gRPC-Web listen port. @default 9091 */
+  grpcWebPort?: number
+  /** pprof listen port. @default 6060 */
+  pprofPort?: number
+  /** Hook to patch genesis after default denom patching. */
+  patchGenesis?: (genesis: any) => any
+}
+
+/**
+ * Shared setup for any Cosmos SDK chain binary.
+ *
+ * Handles the common flow: init → genesis patch → key creation →
+ * gentx → config patch → start → health check polling.
+ *
+ * Used internally by instance definitions (e.g. simd).
+ * For custom chains, provide a `patchGenesis` hook for chain-specific genesis modifications.
+ */
+export function cosmosBase(parameters: CosmosBaseParameters) {
+  const {
+    binary,
+    name,
+    chainId = 'cosmock-1',
+    denom = 'stake',
+    accounts = [],
+    minimumGasPrices,
+    rpcPort = 26657,
+    grpcPort = 9090,
+    apiPort = 1317,
+    p2pPort = 26656,
+    grpcWebPort = 9091,
+    pprofPort = 6060,
+    patchGenesis,
+  } = parameters
+
+  const process = createProcess(name)
+  let homeDir: string | undefined
+
+  return {
+    name,
+    host: 'localhost',
+    port: rpcPort,
+
+    async start(
+      { port = rpcPort }: Instance.InstanceStartOptions,
+      { emitter }: Instance.InstanceStartContext,
+    ) {
+      homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cosmock-'))
+
+      const run = (args: string[]) =>
+        x(binary, [...args, '--home', homeDir!], {
+          nodeOptions: { stdio: 'pipe' },
+        })
+
+      // 1. Init chain
+      await run(['init', 'validator', '--chain-id', chainId])
+
+      // 2. Patch genesis
+      const genesisPath = path.join(homeDir, 'config', 'genesis.json')
+      let genesis = JSON.parse(fs.readFileSync(genesisPath, 'utf-8'))
+
+      genesis = patchDenom(genesis, denom)
+      if (patchGenesis) genesis = patchGenesis(genesis)
+
+      fs.writeFileSync(genesisPath, JSON.stringify(genesis, null, 2))
+
+      // 3. Validator + accounts
+      await run(['keys', 'add', 'validator', '--keyring-backend', 'test'])
+      await run([
+        'genesis', 'add-genesis-account', 'validator',
+        `100000000000${denom}`, '--keyring-backend', 'test',
+      ])
+
+      for (let i = 0; i < accounts.length; i++) {
+        const account = accounts[i]
+        const keyName = account.name || `test-${i}`
+
+        execSync(
+          `echo "${account.mnemonic}" | ${binary} keys add ${keyName} --recover --keyring-backend test --home ${homeDir}`,
+          { stdio: 'pipe' },
+        )
+
+        await run([
+          'genesis', 'add-genesis-account', keyName,
+          account.coins, '--keyring-backend', 'test',
+        ])
+      }
+
+      // 4. Gentx + collect
+      await run([
+        'genesis', 'gentx', 'validator', `10000000${denom}`,
+        '--chain-id', chainId, '--keyring-backend', 'test',
+      ])
+      await run(['genesis', 'collect-gentxs'])
+
+      // 5. Patch configs for port bindings
+      patchToml(path.join(homeDir, 'config', 'config.toml'), {
+        'rpc.laddr': `tcp://0.0.0.0:${port}`,
+        'p2p.laddr': `tcp://0.0.0.0:${p2pPort}`,
+        'rpc.pprof_laddr': `localhost:${pprofPort}`,
+      })
+
+      patchToml(path.join(homeDir, 'config', 'app.toml'), {
+        'api.enable': 'true',
+        'api.address': `tcp://0.0.0.0:${apiPort}`,
+        'grpc.address': `0.0.0.0:${grpcPort}`,
+        'grpc-web.address': `0.0.0.0:${grpcWebPort}`,
+        'minimum-gas-prices': minimumGasPrices ?? `0${denom}`,
+      })
+
+      // 6. Start and wait for first block
+      return process.start(binary, ['start', '--home', homeDir], {
+        emitter,
+        resolver({ process: proc, resolve, reject }) {
+          const rpcUrl = `http://localhost:${port}`
+          const interval = setInterval(async () => {
+            try {
+              const res = await fetch(`${rpcUrl}/status`)
+              if (res.ok) {
+                const data = (await res.json()) as any
+                const height = Number(
+                  data.result?.sync_info?.latest_block_height ?? 0,
+                )
+                if (height > 0) {
+                  clearInterval(interval)
+                  resolve()
+                }
+              }
+            } catch {
+              // Node not ready yet
+            }
+          }, 250)
+
+          proc.process?.on('exit', (code: number | null) => {
+            clearInterval(interval)
+            if (code !== 0) reject(`${name} exited with code ${code}`)
+          })
+        },
+      })
+    },
+
+    async stop() {
+      await process.stop()
+      if (homeDir) {
+        fs.rmSync(homeDir, { recursive: true, force: true })
+        homeDir = undefined
+      }
+    },
+  }
+}
+
+/** Patch common denom fields across SDK versions. */
+function patchDenom(genesis: any, denom: string): any {
+  genesis.app_state.staking.params.bond_denom = denom
+  genesis.app_state.mint.params.mint_denom = denom
+
+  if (genesis.app_state.crisis?.constant_fee) {
+    genesis.app_state.crisis.constant_fee.denom = denom
+  }
+
+  if (genesis.app_state.gov?.deposit_params?.min_deposit?.[0]) {
+    genesis.app_state.gov.deposit_params.min_deposit[0].denom = denom
+  } else if (genesis.app_state.gov?.params?.min_deposit?.[0]) {
+    genesis.app_state.gov.params.min_deposit[0].denom = denom
+  }
+
+  return genesis
+}
+
+/** Simple TOML patcher for `[section]\nkey = "value"` patterns. */
+function patchToml(filePath: string, patches: Record<string, string>): void {
+  let currentSection = ''
+  const lines = fs.readFileSync(filePath, 'utf-8').split('\n')
+  const result: string[] = []
+
+  for (const line of lines) {
+    const sectionMatch = line.match(/^\[([^\]]+)\]/)
+    if (sectionMatch) {
+      currentSection = sectionMatch[1]
+    }
+
+    let patched = false
+    for (const [patchKey, patchValue] of Object.entries(patches)) {
+      const dotIdx = patchKey.indexOf('.')
+      const section = dotIdx >= 0 ? patchKey.slice(0, dotIdx) : ''
+      const key = dotIdx >= 0 ? patchKey.slice(dotIdx + 1) : patchKey
+
+      if (currentSection === section) {
+        const keyPattern = new RegExp(`^(\\s*${key}\\s*=\\s*)(.*)$`)
+        const match = line.match(keyPattern)
+        if (match) {
+          const needsQuotes = patchValue !== 'true' && patchValue !== 'false'
+          result.push(`${match[1]}${needsQuotes ? `"${patchValue}"` : patchValue}`)
+          patched = true
+          break
+        }
+      }
+    }
+
+    if (!patched) result.push(line)
+  }
+
+  fs.writeFileSync(filePath, result.join('\n'))
+}
