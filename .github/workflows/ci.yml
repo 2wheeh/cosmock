@@ -47,14 +47,25 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Download prebuilt binaries
+      - name: Download prebuilt binaries (simd, wasmd, hermes)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release download "binaries/latest" --pattern "*.gz" --dir /tmp
           gunzip -c /tmp/simd-linux-amd64.gz > /usr/local/bin/simd
           gunzip -c /tmp/wasmd-linux-amd64.gz > /usr/local/bin/wasmd
-          chmod +x /usr/local/bin/simd /usr/local/bin/wasmd
+
+          HERMES_LATEST=$(gh release view --repo informalsystems/hermes --json tagName --template '{{.tagName}}')
+
+          gh release download "$HERMES_LATEST" \
+            --repo informalsystems/hermes \
+            --pattern "hermes-$HERMES_LATEST-x86_64-unknown-linux-gnu.tar.gz" \
+            --dir /tmp
+
+          tar -xzf /tmp/hermes-$HERMES_LATEST-x86_64-unknown-linux-gnu.tar.gz -C /tmp
+          mv /tmp/hermes /usr/local/bin/hermes
+
+          chmod +x /usr/local/bin/simd /usr/local/bin/wasmd /usr/local/bin/hermes
 
       - name: Integration tests
-        run: pnpm vitest run test/simd.test.ts test/wasmd.test.ts
+        run: pnpm vitest run test/simd.test.ts test/wasmd.test.ts test/ibc.test.ts
