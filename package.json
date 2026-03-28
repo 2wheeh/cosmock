@@ -42,14 +42,14 @@
   },
   "dependencies": {
     "mitt": "^3.0.1",
-    "tinyexec": "^0.3.2"
+    "tinyexec": "^1.0.4"
   },
   "devDependencies": {
     "@cosmjs/cosmwasm-stargate": "^0.38.1",
     "@cosmjs/proto-signing": "^0.38.1",
     "@cosmjs/stargate": "^0.38.1",
     "@types/node": "^25.5.0",
-    "typescript": "^5.7.0",
-    "vitest": "^3.0.0"
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
   }
 }
