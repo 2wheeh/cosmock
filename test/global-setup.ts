@@ -59,7 +59,7 @@ export default async function setup({ provide }: TestProject) {
   if (hasBinary('wasmd') && hasBinary('hermes')) {
     const ibcChainA = Instance.wasmd({
       chainId: 'ibc-a',
-      denom: 'stake',
+      prefix: 'wasm',
       rpcPort: 26857,
       grpcPort: 9290,
       apiPort: 1517,
@@ -74,7 +74,7 @@ export default async function setup({ provide }: TestProject) {
 
     const ibcChainB = Instance.wasmd({
       chainId: 'ibc-b',
-      denom: 'stake',
+      prefix: 'wasm',
       rpcPort: 26957,
       grpcPort: 9390,
       apiPort: 1617,
@@ -92,27 +92,16 @@ export default async function setup({ provide }: TestProject) {
     cleanups.push(() => ibcChainB.stop())
 
     const relayer = Instance.hermes({
-      chainA: {
-        chainId: 'ibc-a',
-        rpcUrl: `http://localhost:${ibcChainA.port}`,
-        grpcUrl: 'http://localhost:9290',
-        prefix: 'wasm',
-        mnemonic: RELAYER_MNEMONIC,
-      },
-      chainB: {
-        chainId: 'ibc-b',
-        rpcUrl: `http://localhost:${ibcChainB.port}`,
-        grpcUrl: 'http://localhost:9390',
-        prefix: 'wasm',
-        mnemonic: RELAYER_MNEMONIC,
-      },
+      chainA: ibcChainA,
+      chainB: ibcChainB,
+      mnemonic: RELAYER_MNEMONIC,
     }, { timeout: 180_000 })
 
     await relayer.start()
     cleanups.push(() => relayer.stop())
 
-    provide('ibcChainARpcUrl', `http://localhost:${ibcChainA.port}`)
-    provide('ibcChainBRpcUrl', `http://localhost:${ibcChainB.port}`)
+    provide('ibcChainARpcUrl', `http://${ibcChainA.host}:${ibcChainA.port}`)
+    provide('ibcChainBRpcUrl', `http://${ibcChainB.host}:${ibcChainB.port}`)
   }
 
   provide('testMnemonic', TEST_MNEMONIC)

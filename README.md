@@ -1,5 +1,8 @@
 # cosmock
 
+> [!WARNING]
+> This project is under active development. APIs may change without notice until v1.0.
+
 HTTP testing instances for Cosmos.
 
 Lightweight alternative to [Starship](https://github.com/cosmology-tech/starship) — run real Cosmos SDK chain nodes as child processes without Docker or Kubernetes.

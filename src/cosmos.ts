@@ -21,6 +21,8 @@ export type CosmosChainParameters = {
   chainId?: string
   /** Default denom. @default "stake" */
   denom?: string
+  /** Bech32 address prefix. @default "cosmos" */
+  prefix?: string
   /** Accounts to fund in genesis. */
   accounts?: CosmosAccount[]
   /** Minimum gas prices. @default "0{denom}" */
@@ -37,6 +39,15 @@ export type CosmosChainParameters = {
   grpcWebPort?: number
   /** pprof listen port. @default 6060 */
   pprofPort?: number
+}
+
+/** A Cosmos chain instance with chain-specific config exposed. */
+export type CosmosInstance = Instance.Instance & {
+  chainId: string
+  denom: string
+  prefix: string
+  grpcPort: number
+  apiPort: number
 }
 
 /** Internal parameters for cosmosBase. Extends CosmosChainParameters with binary, name, and hooks. */
@@ -64,6 +75,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
     name,
     chainId = 'cosmock-1',
     denom = 'stake',
+    prefix = 'cosmos',
     accounts = [],
     minimumGasPrices,
     rpcPort = 26657,
@@ -82,6 +94,11 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
     name,
     host: 'localhost',
     port: rpcPort,
+    chainId,
+    prefix,
+    denom,
+    grpcPort,
+    apiPort,
 
     async start(
       { port = rpcPort }: Instance.InstanceStartOptions,

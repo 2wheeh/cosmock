@@ -3,32 +3,20 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import * as Instance from '../Instance.js'
+import type { CosmosInstance } from '../cosmos.js'
 import { createProcess } from '../process.js'
-
-export type HermesChain = {
-  /** Chain ID. */
-  chainId: string
-  /** CometBFT RPC URL (e.g. "http://localhost:26657"). */
-  rpcUrl: string
-  /** gRPC URL (e.g. "http://localhost:9090"). */
-  grpcUrl: string
-  /** Account prefix (e.g. "cosmos", "wasm"). */
-  prefix: string
-  /** Mnemonic for the relayer account on this chain. */
-  mnemonic: string
-  /** Default denom. @default "stake" */
-  denom?: string
-  /** Gas price amount. @default "0.025" */
-  gasPrice?: string
-}
 
 export type HermesParameters = {
   /** Path to the hermes binary. @default "hermes" */
   binary?: string
-  /** Chain A configuration. */
-  chainA: HermesChain
-  /** Chain B configuration. */
-  chainB: HermesChain
+  /** Chain A instance (must be started). */
+  chainA: CosmosInstance
+  /** Chain B instance (must be started). */
+  chainB: CosmosInstance
+  /** Mnemonic for the relayer account (must be funded on both chains). */
+  mnemonic: string
+  /** Gas price amount. @default "0.025" */
+  gasPrice?: string
   /** Telemetry port. @default 3001 */
   telemetryPort?: number
 }
@@ -38,16 +26,22 @@ export type HermesParameters = {
  *
  * Connects two Cosmos SDK chains and relays IBC packets between them.
  * Both chains must be running before starting the relayer.
+ * The relayer mnemonic must be funded on both chains via genesis accounts.
  *
  * @example
  * ```ts
+ * const chainA = Instance.wasmd({ chainId: 'ibc-a', prefix: 'wasm', accounts: [
+ *   { mnemonic: RELAYER_MNEMONIC, coins: '1000000000stake', name: 'relayer' },
+ * ]})
+ * const chainB = Instance.wasmd({ chainId: 'ibc-b', prefix: 'wasm', ... })
+ * await Promise.all([chainA.start(), chainB.start()])
+ *
  * const relayer = Instance.hermes({
- *   chainA: { chainId: 'wasm-1', rpcUrl: 'http://localhost:26657', grpcUrl: 'http://localhost:9090', prefix: 'wasm', mnemonic: '...' },
- *   chainB: { chainId: 'wasm-2', rpcUrl: 'http://localhost:26660', grpcUrl: 'http://localhost:9092', prefix: 'wasm', mnemonic: '...' },
+ *   chainA,
+ *   chainB,
+ *   mnemonic: RELAYER_MNEMONIC,
  * })
  * await relayer.start()
- * // IBC channel is created and packets are being relayed
- * await relayer.stop()
  * ```
  */
 export const hermes = Instance.define((parameters: HermesParameters) => {
@@ -55,6 +49,8 @@ export const hermes = Instance.define((parameters: HermesParameters) => {
     binary = 'hermes',
     chainA,
     chainB,
+    mnemonic,
+    gasPrice = '0.025',
     telemetryPort = 3001,
   } = parameters
 
@@ -71,12 +67,8 @@ export const hermes = Instance.define((parameters: HermesParameters) => {
       homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cosmock-hermes-'))
       const configPath = path.join(homeDir, 'config.toml')
 
-      // 1. Write config
-      fs.writeFileSync(configPath, generateConfig({
-        chainA,
-        chainB,
-        telemetryPort,
-      }))
+      // 1. Write config (derive URLs from chain instances)
+      fs.writeFileSync(configPath, generateConfig({ chainA, chainB, gasPrice, telemetryPort }))
 
       const run = (args: string[]) => {
         const result = spawnSync(binary, ['--config', configPath, ...args], {
@@ -91,16 +83,12 @@ export const hermes = Instance.define((parameters: HermesParameters) => {
         return stdout + stderr
       }
 
-      // 2. Add keys for each chain
+      // 2. Add relayer key to both chains
+      const mnemonicFile = path.join(homeDir, 'mnemonic.txt')
+      fs.writeFileSync(mnemonicFile, mnemonic)
+
       for (const chain of [chainA, chainB]) {
-        const mnemonicFile = path.join(homeDir, `${chain.chainId}-mnemonic.txt`)
-        fs.writeFileSync(mnemonicFile, chain.mnemonic)
-        run([
-          'keys', 'add',
-          '--chain', chain.chainId,
-          '--mnemonic-file', mnemonicFile,
-          '--overwrite',
-        ])
+        run(['keys', 'add', '--chain', chain.chainId, '--mnemonic-file', mnemonicFile, '--overwrite'])
       }
 
       // 3. Create clients, connection, and channel (step by step)
@@ -121,7 +109,6 @@ export const hermes = Instance.define((parameters: HermesParameters) => {
             const check = (data: Buffer) => {
               if (resolved) return
               const msg = data.toString()
-              // Hermes logs "Hermes has started" or "spawning supervisor" when ready
               if (
                 msg.includes('Hermes has started') ||
                 msg.includes('spawning supervisor')
@@ -155,29 +142,30 @@ export const hermes = Instance.define((parameters: HermesParameters) => {
 })
 
 function generateConfig(opts: {
-  chainA: HermesChain
-  chainB: HermesChain
+  chainA: CosmosInstance
+  chainB: CosmosInstance
+  gasPrice: string
   telemetryPort: number
 }): string {
-  const { chainA, chainB, telemetryPort } = opts
+  const { chainA, chainB, gasPrice, telemetryPort } = opts
 
-  function chainSection(chain: HermesChain): string {
-    const gasPrice = chain.gasPrice ?? '0.025'
-    const denom = chain.denom ?? 'stake'
+  function chainSection(chain: CosmosInstance): string {
+    const rpcUrl = `http://${chain.host}:${chain.port}`
+    const grpcUrl = `http://${chain.host}:${chain.grpcPort}`
 
     return `
 [[chains]]
 id = '${chain.chainId}'
 type = 'CosmosSdk'
-rpc_addr = '${chain.rpcUrl}'
-grpc_addr = '${chain.grpcUrl}'
-event_source = { mode = 'push', url = '${chain.rpcUrl.replace('http', 'ws')}/websocket', batch_delay = '500ms' }
+rpc_addr = '${rpcUrl}'
+grpc_addr = '${grpcUrl}'
+event_source = { mode = 'push', url = '${rpcUrl.replace('http', 'ws')}/websocket', batch_delay = '500ms' }
 account_prefix = '${chain.prefix}'
 key_name = 'relayer'
 store_prefix = 'ibc'
 default_gas = 1000000
 max_gas = 10000000
-gas_price = { price = ${gasPrice}, denom = '${denom}' }
+gas_price = { price = ${gasPrice}, denom = '${chain.denom}' }
 gas_multiplier = 1.2
 max_msg_num = 30
 max_tx_size = 180000

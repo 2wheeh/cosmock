@@ -16,7 +16,7 @@ export type SimdParameters = CosmosChainParameters & {
  *   accounts: [{ mnemonic: '...', coins: '1000000000stake' }],
  * })
  * await instance.start()
- * // instance.port → 26657 (CometBFT RPC)
+ * // instance.chainId → 'test-1'
  * await instance.stop()
  * ```
  */

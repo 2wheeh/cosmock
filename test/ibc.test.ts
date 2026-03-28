@@ -8,6 +8,7 @@ describe.skipIf(!chainARpcUrl || !chainBRpcUrl)('IBC transfer', () => {
   it('sends tokens from chain A to chain B via IBC', async () => {
     const { SigningStargateClient, StargateClient, GasPrice } = await import('@cosmjs/stargate');
     const { DirectSecp256k1HdWallet } = await import('@cosmjs/proto-signing');
+    const { MsgTransfer } = await import('cosmjs-types/ibc/applications/transfer/v1/tx');
 
     // Create wallets for both chains
     const walletA = await DirectSecp256k1HdWallet.fromMnemonic(mnemonic, { prefix: 'wasm' });
@@ -25,23 +26,25 @@ describe.skipIf(!chainARpcUrl || !chainBRpcUrl)('IBC transfer', () => {
     const balanceBefore = await clientA.getBalance(accountA.address, 'stake');
     expect(BigInt(balanceBefore.amount)).toBeGreaterThan(0n);
 
-    // Get current block height on chain B for timeout
-    const chainBHeight = await clientB.getHeight();
+    // IBC transfer via MsgTransfer
+    const transferMsg = {
+      typeUrl: '/ibc.applications.transfer.v1.MsgTransfer',
+      value: MsgTransfer.fromPartial({
+        sourcePort: 'transfer',
+        sourceChannel: 'channel-0',
+        token: { denom: 'stake', amount: '1000000' },
+        sender: accountA.address,
+        receiver: accountB.address,
+        timeoutTimestamp: BigInt((Math.floor(Date.now() / 1000) + 600) * 1_000_000_000),
+      }),
+    };
 
-    // Send IBC transfer from chain A to chain B
-    const amount = { denom: 'stake', amount: '1000000' };
-    const result = await clientA.sendIbcTokens(
-      accountA.address,
-      accountB.address,
-      amount,
-      'transfer',
-      'channel-0',
-      undefined,
-      (Math.floor(Date.now() / 1000) + 600) * 1_000_000_000, // 10 min timeout (nanoseconds)
-      { amount: [{ denom: 'stake', amount: '5000' }], gas: '300000' },
-    );
+    const result = await clientA.signAndBroadcast(accountA.address, [transferMsg], 'auto');
     if (result.code !== 0) {
-      console.error('IBC transfer failed:', result.rawLog || JSON.stringify(result));
+      console.error(
+        'IBC transfer failed:',
+        result.events.map(e => `${e.type}: ${e.attributes.map(a => `${a.key}=${a.value}`).join(', ')}`).join('; '),
+      );
     }
     expect(result.code).toBe(0);
 
@@ -53,7 +56,7 @@ describe.skipIf(!chainARpcUrl || !chainBRpcUrl)('IBC transfer', () => {
     const ibcBalance = balancesB.find(b => b.denom.startsWith('ibc/'));
 
     expect(ibcBalance).toBeTruthy();
-    expect(BigInt(ibcBalance!.amount)).toBe(BigInt(amount.amount));
+    expect(BigInt(ibcBalance!.amount)).toBe(1000000n);
 
     clientA.disconnect();
     clientB.disconnect();

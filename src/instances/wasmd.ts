@@ -18,7 +18,7 @@ export type WasmdParameters = CosmosChainParameters & {
  *   accounts: [{ mnemonic: '...', coins: '1000000000stake' }],
  * })
  * await instance.start()
- * // Use with @cosmjs/cosmwasm-stargate for contract deploy/execute
+ * // instance.chainId → 'wasm-test-1'
  * await instance.stop()
  * ```
  */

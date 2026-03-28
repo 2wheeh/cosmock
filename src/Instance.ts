@@ -64,7 +64,7 @@ export type InstanceStopContext = {
   status: InstanceStatus
 }
 
-export type DefineFn<P> = (parameters: P) => {
+type DefineFnResult = {
   name: string
   host: string
   port: number
@@ -90,12 +90,13 @@ export type DefineFn<P> = (parameters: P) => {
  * }))
  *
  * const instance = simd({ chainId: 'test-1' })
+ * instance.chainId // string — extra field preserved
  * await instance.start()
  * ```
  */
-export function define<P = undefined>(
-  fn: DefineFn<P>,
-): (...args: P extends undefined ? [options?: InstanceOptions] : [parameters: P, options?: InstanceOptions]) => Instance {
+export function define<P = undefined, R extends DefineFnResult = DefineFnResult>(
+  fn: (parameters: P) => R,
+): (...args: P extends undefined ? [options?: InstanceOptions] : [parameters: P, options?: InstanceOptions]) => Omit<R, keyof DefineFnResult> & Instance {
   return (...[parametersOrOptions, options_]: any[]) => {
     const isInstanceOptions = (v: any): v is InstanceOptions =>
       v != null && typeof v === 'object' && ('messageBuffer' in v || 'timeout' in v)
@@ -107,10 +108,10 @@ export function define<P = undefined>(
       : undefined) as P
     const options: InstanceOptions = options_ ?? (isInstanceOptions(parametersOrOptions) ? parametersOrOptions : {})
 
-    const instance = fn(parameters)
-    const { name, start, stop } = instance
-    let host = instance.host
-    let port = instance.port
+    const raw = fn(parameters)
+    const { name, start, stop } = raw
+    let host = raw.host
+    let port = raw.port
     const { messageBuffer = 20, timeout = 60_000 } = options
 
     let startResolver = Promise.withResolvers<() => void>()
@@ -130,7 +131,7 @@ export function define<P = undefined>(
     const onListening = () => { status = 'started' }
     const onExit = () => { status = 'stopped' }
 
-    const self: Instance = {
+    const self = {
       get host() { return host },
       name,
       get port() { return port },
@@ -246,8 +247,14 @@ export function define<P = undefined>(
 
       on: emitter.on.bind(emitter),
       off: emitter.off.bind(emitter),
+    } satisfies Instance
+
+    const knownKeys = new Set(['name', 'host', 'port', 'start', 'stop'])
+    const extra: Record<string, unknown> = {}
+    for (const key of Object.keys(raw)) {
+      if (!knownKeys.has(key)) extra[key] = (raw as Record<string, unknown>)[key]
     }
 
-    return self
+    return Object.assign(self, extra) as Omit<R, keyof DefineFnResult> & Instance
   }
 }
