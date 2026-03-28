@@ -31,10 +31,21 @@ jobs:
           gzip -c /tmp/simd > /tmp/simd-linux-amd64.gz
           echo "SIMD_VERSION=$(cd /tmp/cosmos-sdk && git describe --tags --always)" >> $GITHUB_ENV
 
-      - name: Build wasmd
+      - name: Build wasmd (static, with muslc)
         run: |
+          sudo apt-get update && sudo apt-get install -y musl-tools
           git clone --depth 1 --branch ${{ github.event.inputs.wasmd_ref }} https://github.com/CosmWasm/wasmd.git /tmp/wasmd-src
-          cd /tmp/wasmd-src && go build -o /tmp/wasmd ./cmd/wasmd/
+          cd /tmp/wasmd-src
+
+          # Download prebuilt libwasmvm static library
+          WASMVM_VERSION=$(go list -m -json github.com/CosmWasm/wasmvm/v3 2>/dev/null | jq -r .Version || go list -m -json github.com/CosmWasm/wasmvm/v2 2>/dev/null | jq -r .Version)
+          gh release download "$WASMVM_VERSION" \
+            --repo CosmWasm/wasmvm \
+            --pattern "libwasmvm_muslc.x86_64.a" \
+            --dir /usr/local/lib
+          ln -sf /usr/local/lib/libwasmvm_muslc.x86_64.a /usr/local/lib/libwasmvm_muslc.a
+
+          CGO_ENABLED=1 CC=musl-gcc go build -tags muslc -ldflags '-linkmode external -extldflags "-static"' -o /tmp/wasmd ./cmd/wasmd/
           gzip -c /tmp/wasmd > /tmp/wasmd-linux-amd64.gz
           echo "WASMD_VERSION=$(cd /tmp/wasmd-src && git describe --tags --always)" >> $GITHUB_ENV
 
