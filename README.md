@@ -30,12 +30,11 @@ pnpm add -D cosmock
 
 ### Prerequisites
 
-Install the binary for the instance you need:
+Install the binary for the instance you need. Requires [Go](https://go.dev/dl/) >= 1.25.
 
 **simd** (Cosmos SDK simapp):
 
 ```bash
-# go install may fail due to replace directives, build from source:
 git clone --depth 1 https://github.com/cosmos/cosmos-sdk.git /tmp/cosmos-sdk
 cd /tmp/cosmos-sdk/simapp && go build -o ~/go/bin/simd ./simd/
 ```
@@ -46,6 +45,20 @@ cd /tmp/cosmos-sdk/simapp && go build -o ~/go/bin/simd ./simd/
 git clone --depth 1 https://github.com/CosmWasm/wasmd.git /tmp/wasmd
 cd /tmp/wasmd && go build -o ~/go/bin/wasmd ./cmd/wasmd/
 ```
+
+### Prebuilt binaries (CI)
+
+Prebuilt `linux/amd64` binaries are available in [GitHub Releases](https://github.com/2wheeh/cosmock/releases/tag/binaries/latest) for CI environments:
+
+```bash
+# Download and install (e.g. in GitHub Actions)
+gh release download "binaries/latest" --repo 2wheeh/cosmock --pattern "*.gz" --dir /tmp
+gunzip -c /tmp/simd-linux-amd64.gz > /usr/local/bin/simd
+gunzip -c /tmp/wasmd-linux-amd64.gz > /usr/local/bin/wasmd
+chmod +x /usr/local/bin/simd /usr/local/bin/wasmd
+```
+
+> For local development on macOS/Windows, build from source using the instructions above.
 
 ## Usage
 

@@ -1,0 +1,62 @@
+name: Release Binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      cosmos_sdk_ref:
+        description: 'cosmos-sdk git ref (branch/tag)'
+        default: 'main'
+      wasmd_ref:
+        description: 'wasmd git ref (branch/tag)'
+        default: 'main'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build binaries (linux/amd64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+
+      - name: Build simd
+        run: |
+          git clone --depth 1 --branch ${{ github.event.inputs.cosmos_sdk_ref }} https://github.com/cosmos/cosmos-sdk.git /tmp/cosmos-sdk
+          cd /tmp/cosmos-sdk/simapp && go build -o /tmp/simd ./simd/
+          gzip -c /tmp/simd > /tmp/simd-linux-amd64.gz
+          echo "SIMD_VERSION=$(cd /tmp/cosmos-sdk && git describe --tags --always)" >> $GITHUB_ENV
+
+      - name: Build wasmd
+        run: |
+          git clone --depth 1 --branch ${{ github.event.inputs.wasmd_ref }} https://github.com/CosmWasm/wasmd.git /tmp/wasmd-src
+          cd /tmp/wasmd-src && go build -o /tmp/wasmd ./cmd/wasmd/
+          gzip -c /tmp/wasmd > /tmp/wasmd-linux-amd64.gz
+          echo "WASMD_VERSION=$(cd /tmp/wasmd-src && git describe --tags --always)" >> $GITHUB_ENV
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="binaries/latest"
+          GO_VERSION=$(go version | awk '{print $3}')
+          BODY="simd: cosmos-sdk@${{ github.event.inputs.cosmos_sdk_ref }} ($SIMD_VERSION)
+          wasmd: wasmd@${{ github.event.inputs.wasmd_ref }} ($WASMD_VERSION)
+          Go: $GO_VERSION
+          Platform: linux/amd64
+          Updated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          git tag -d "$TAG" 2>/dev/null || true
+          git push origin ":refs/tags/$TAG" 2>/dev/null || true
+
+          gh release create "$TAG" \
+            --title "Prebuilt Binaries (latest)" \
+            --notes "$BODY" \
+            --prerelease \
+            /tmp/simd-linux-amd64.gz \
+            /tmp/wasmd-linux-amd64.gz
