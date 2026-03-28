@@ -3,7 +3,7 @@ import { describe, it, expect, inject } from 'vitest'
 const rpcUrl = inject('simdRpcUrl')
 const mnemonic = inject('testMnemonic')
 
-describe.skipIf(!rpcUrl)('simd instance', () => {
+describe('simd instance', () => {
   it('responds to RPC /status', async () => {
     const res = await fetch(`${rpcUrl}/status`)
     expect(res.ok).toBe(true)
@@ -20,7 +20,7 @@ describe.skipIf(!rpcUrl)('simd instance', () => {
     })
     const [account] = await wallet.getAccounts()
 
-    const client = await StargateClient.connect(rpcUrl!)
+    const client = await StargateClient.connect(rpcUrl)
     const balance = await client.getBalance(account.address, 'stake')
 
     expect(BigInt(balance.amount)).toBeGreaterThan(0n)
@@ -38,7 +38,7 @@ describe.skipIf(!rpcUrl)('simd instance', () => {
 
     const recipient = 'cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu'
 
-    const client = await SigningStargateClient.connectWithSigner(rpcUrl!, wallet)
+    const client = await SigningStargateClient.connectWithSigner(rpcUrl, wallet)
 
     const result = await client.sendTokens(
       sender.address,

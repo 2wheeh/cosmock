@@ -6,7 +6,7 @@ import { GasPrice } from '@cosmjs/stargate'
 const rpcUrl = inject('wasmdRpcUrl')
 const mnemonic = inject('testMnemonic')
 
-describe.skipIf(!rpcUrl)('wasmd instance', () => {
+describe('wasmd instance', () => {
   it('responds to RPC /status', async () => {
     const res = await fetch(`${rpcUrl}/status`)
     expect(res.ok).toBe(true)
@@ -22,7 +22,7 @@ describe.skipIf(!rpcUrl)('wasmd instance', () => {
     const [account] = await wallet.getAccounts()
 
     const client = await SigningCosmWasmClient.connectWithSigner(
-      rpcUrl!,
+      rpcUrl,
       wallet,
       { gasPrice: GasPrice.fromString('0stake') },
     )

@@ -73,12 +73,12 @@ export const hermes = Instance.define((parameters: HermesParameters) => {
       const run = (args: string[]) => {
         const result = spawnSync(binary, ['--config', configPath, ...args], {
           stdio: 'pipe',
-          timeout: 120_000,
+          timeout: 300_000,
         })
         const stderr = result.stderr?.toString() || ''
         const stdout = result.stdout?.toString() || ''
         if (result.status !== 0) {
-          throw new Error(`hermes ${args.join(' ')} failed: ${stderr || stdout}`)
+          throw new Error(`hermes ${args.join(' ')} failed (exit ${result.status}, signal ${result.signal}):\n${stderr}\n${stdout}`)
         }
         return stdout + stderr
       }
@@ -91,7 +91,10 @@ export const hermes = Instance.define((parameters: HermesParameters) => {
         run(['keys', 'add', '--chain', chain.chainId, '--mnemonic-file', mnemonicFile, '--overwrite'])
       }
 
-      // 3. Create clients, connection, and channel (step by step)
+      // 3. Verify chains are reachable
+      run(['health-check'])
+
+      // 4. Create clients, connection, and channel (step by step)
       run(['create', 'client', '--host-chain', chainA.chainId, '--reference-chain', chainB.chainId])
       run(['create', 'client', '--host-chain', chainB.chainId, '--reference-chain', chainA.chainId])
       run(['create', 'connection', '--a-chain', chainA.chainId, '--a-client', '07-tendermint-0', '--b-client', '07-tendermint-0'])
@@ -170,8 +173,10 @@ gas_multiplier = 1.2
 max_msg_num = 30
 max_tx_size = 180000
 clock_drift = '5s'
-max_block_time = '30s'
+max_block_time = '10s'
 trusting_period = '14days'
+memo_prefix = ''
+sequential_batch_tx = false
 trust_threshold = { numerator = '1', denominator = '3' }
 address_type = { derivation = 'cosmos' }
 `

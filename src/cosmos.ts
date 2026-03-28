@@ -161,6 +161,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
         'rpc.laddr': `tcp://0.0.0.0:${port}`,
         'p2p.laddr': `tcp://0.0.0.0:${p2pPort}`,
         'rpc.pprof_laddr': `localhost:${pprofPort}`,
+        'consensus.timeout_commit': '1s',
       })
 
       patchToml(path.join(homeDir, 'config', 'app.toml'), {

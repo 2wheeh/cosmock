@@ -4,7 +4,7 @@ const chainARpcUrl = inject('ibcChainARpcUrl');
 const chainBRpcUrl = inject('ibcChainBRpcUrl');
 const mnemonic = inject('testMnemonic');
 
-describe.skipIf(!chainARpcUrl || !chainBRpcUrl)('IBC transfer', () => {
+describe('IBC transfer', () => {
   it('sends tokens from chain A to chain B via IBC', async () => {
     const { SigningStargateClient, StargateClient, GasPrice } = await import('@cosmjs/stargate');
     const { DirectSecp256k1HdWallet } = await import('@cosmjs/proto-signing');
@@ -17,10 +17,10 @@ describe.skipIf(!chainARpcUrl || !chainBRpcUrl)('IBC transfer', () => {
     const [accountB] = await walletB.getAccounts();
 
     // Connect to both chains
-    const clientA = await SigningStargateClient.connectWithSigner(chainARpcUrl!, walletA, {
+    const clientA = await SigningStargateClient.connectWithSigner(chainARpcUrl, walletA, {
       gasPrice: GasPrice.fromString('0stake'),
     });
-    const clientB = await StargateClient.connect(chainBRpcUrl!);
+    const clientB = await StargateClient.connect(chainBRpcUrl);
 
     // Check initial balance on chain A
     const balanceBefore = await clientA.getBalance(accountA.address, 'stake');
