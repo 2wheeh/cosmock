@@ -3,6 +3,7 @@ import type { EventTypes } from './process.js'
 
 export { simd } from './instances/simd.js'
 export { wasmd } from './instances/wasmd.js'
+export { hermes } from './instances/hermes.js'
 
 export type InstanceStatus =
   | 'idle'
