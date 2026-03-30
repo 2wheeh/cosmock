@@ -275,9 +275,11 @@ Recommended: fund multiple accounts in genesis, assign each test its own account
 
 ## TODO
 
-- [ ] IBC testing with [Hermes](https://github.com/informalsystems/hermes) relayer instance
+- [ ] `cosmock.config.ts` — config-based chain + relayer declaration
+- [ ] `cosmock/vitest` — vitest plugin (automatic setup/teardown via `vitestPlugin(config)`)
+- [ ] `cosmock/playwright` — playwright plugin (`playwrightPlugin(config)`)
 - [ ] Automatic port allocation (avoid port conflicts in parallel tests)
-- [ ] vitest globalSetup helper function
+- [ ] `findFreePorts()` utility for direct `Instance` users
 
 ## License
 
