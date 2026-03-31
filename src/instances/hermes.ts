@@ -10,11 +10,9 @@ import { stripColors } from '../utils.js';
 export type HermesParameters = {
   /** Path to the hermes binary. @default "hermes" */
   binary?: string;
-  /** Chain A instance (must be started). */
-  chainA: CosmosInstance;
-  /** Chain B instance (must be started). */
-  chainB: CosmosInstance;
-  /** Mnemonic for the relayer account (must be funded on both chains). */
+  /** IBC channel pairs to relay. Each tuple is [chain, chain]. */
+  channels: [CosmosInstance, CosmosInstance][];
+  /** Mnemonic for the relayer account (must be funded on all chains). */
   mnemonic: string;
   /** Gas price amount. @default "0.025" */
   gasPrice?: string;
@@ -84,15 +82,8 @@ function summarizeError(error: Error): string {
  *
  * @example
  * ```ts
- * const chainA = Instance.wasmd({ chainId: 'ibc-a', prefix: 'wasm', accounts: [
- *   { mnemonic: RELAYER_MNEMONIC, coins: '1000000000stake', name: 'relayer' },
- * ]})
- * const chainB = Instance.wasmd({ chainId: 'ibc-b', prefix: 'wasm', ... })
- * await Promise.all([chainA.start(), chainB.start()])
- *
  * const relayer = Instance.hermes({
- *   chainA,
- *   chainB,
+ *   channels: [[chainA, chainB], [chainB, chainC]],
  *   mnemonic: RELAYER_MNEMONIC,
  * })
  * await relayer.start()
@@ -101,8 +92,7 @@ function summarizeError(error: Error): string {
 export const hermes = Instance.define((parameters: HermesParameters) => {
   const {
     binary = 'hermes',
-    chainA,
-    chainB,
+    channels,
     mnemonic,
     gasPrice = '0.025',
     telemetryPort = 3001,
@@ -111,6 +101,8 @@ export const hermes = Instance.define((parameters: HermesParameters) => {
     commandRetries = process.env.CI ? 2 : 0,
     commandRetryDelayMs = 5_000,
   } = parameters;
+
+  const uniqueChains = [...new Set(channels.flat())];
 
   const name = 'hermes';
   const processManager = createProcess(name);
@@ -132,7 +124,7 @@ export const hermes = Instance.define((parameters: HermesParameters) => {
       };
 
       // 1. Write config (derive URLs from chain instances)
-      fs.writeFileSync(configPath, generateConfig({ chainA, chainB, gasPrice, telemetryPort }));
+      fs.writeFileSync(configPath, generateConfig({ chains: uniqueChains, gasPrice, telemetryPort }));
       debugLog(`wrote config: ${configPath}`);
 
       const shouldAnnounceCommand = (args: string[]) => debug || isStreamingCommand(args);
@@ -299,7 +291,7 @@ export const hermes = Instance.define((parameters: HermesParameters) => {
       fs.writeFileSync(mnemonicFile, mnemonic);
       debugLog(`wrote mnemonic file: ${mnemonicFile}`);
 
-      for (const chain of [chainA, chainB]) {
+      for (const chain of uniqueChains) {
         debugLog(`adding key for chain ${chain.chainId}`);
         await run(['keys', 'add', '--chain', chain.chainId, '--mnemonic-file', mnemonicFile, '--overwrite']);
       }
@@ -308,131 +300,133 @@ export const hermes = Instance.define((parameters: HermesParameters) => {
       debugLog('running health-check');
       await run(['health-check']);
 
-      // 4. Create clients, connection, and channel (step by step)
-      debugLog(`creating client on ${chainA.chainId} -> ${chainB.chainId}`);
-      const clientAOutput = await run([
-        'create',
-        'client',
-        '--host-chain',
-        chainA.chainId,
-        '--reference-chain',
-        chainB.chainId,
-      ]);
-      debugLog(`creating client on ${chainB.chainId} -> ${chainA.chainId}`);
-      const clientBOutput = await run([
-        'create',
-        'client',
-        '--host-chain',
-        chainB.chainId,
-        '--reference-chain',
-        chainA.chainId,
-      ]);
-      const clientAId = extractLastMatch(clientAOutput, /07-tendermint-\d+/g) ?? '07-tendermint-0';
-      const clientBId = extractLastMatch(clientBOutput, /07-tendermint-\d+/g) ?? '07-tendermint-0';
-      debugLog(`client ids: a=${clientAId}, b=${clientBId}`);
+      // 4. Create clients, connection, and channel for each pair
+      for (const [chainA, chainB] of channels) {
+        debugLog(`creating client on ${chainA.chainId} -> ${chainB.chainId}`);
+        const clientAOutput = await run([
+          'create',
+          'client',
+          '--host-chain',
+          chainA.chainId,
+          '--reference-chain',
+          chainB.chainId,
+        ]);
+        debugLog(`creating client on ${chainB.chainId} -> ${chainA.chainId}`);
+        const clientBOutput = await run([
+          'create',
+          'client',
+          '--host-chain',
+          chainB.chainId,
+          '--reference-chain',
+          chainA.chainId,
+        ]);
+        const clientAId = extractLastMatch(clientAOutput, /07-tendermint-\d+/g) ?? '07-tendermint-0';
+        const clientBId = extractLastMatch(clientBOutput, /07-tendermint-\d+/g) ?? '07-tendermint-0';
+        debugLog(`client ids: a=${clientAId}, b=${clientBId}`);
 
-      const findExistingConnectionId = async () => {
-        try {
-          const out = await run(
-            ['query', 'connections', '--chain', chainA.chainId, '--counterparty-chain', chainB.chainId, '--verbose'],
-            0,
-          );
-
-          const candidates = extractMatches(out, /connection-\d+/g).reverse();
-          for (const candidate of candidates) {
-            const details = await run(
-              ['query', 'connection', 'end', '--chain', chainA.chainId, '--connection', candidate],
+        const findExistingConnectionId = async () => {
+          try {
+            const out = await run(
+              ['query', 'connections', '--chain', chainA.chainId, '--counterparty-chain', chainB.chainId, '--verbose'],
               0,
             );
 
-            if (hasOpenState(details) && hasIdentifiers(details, [clientAId, clientBId])) {
-              return candidate;
+            const candidates = extractMatches(out, /connection-\d+/g).reverse();
+            for (const candidate of candidates) {
+              const details = await run(
+                ['query', 'connection', 'end', '--chain', chainA.chainId, '--connection', candidate],
+                0,
+              );
+
+              if (hasOpenState(details) && hasIdentifiers(details, [clientAId, clientBId])) {
+                return candidate;
+              }
             }
+
+            return undefined;
+          } catch {
+            return undefined;
           }
+        };
 
-          return undefined;
-        } catch {
-          return undefined;
-        }
-      };
-
-      let connectionId: string | undefined;
-      try {
-        log('creating connection');
-        const connectionOutput = await run(
-          ['create', 'connection', '--a-chain', chainA.chainId, '--a-client', clientAId, '--b-client', clientBId],
-          Math.max(commandRetries, 1),
-        );
-        connectionId = extractLastMatch(connectionOutput, /connection-\d+/g);
-        log(`connection id: ${connectionId ?? 'unknown'}`);
-      } catch (error) {
-        log('create connection failed, trying to reuse existing connection');
-        connectionId = await findExistingConnectionId();
-        if (connectionId) log(`reused connection id: ${connectionId}`);
-        if (!connectionId) throw error;
-      }
-
-      const findExistingChannelId = async () => {
+        let connectionId: string | undefined;
         try {
-          const out = await run(
+          log(`creating connection ${chainA.chainId} <-> ${chainB.chainId}`);
+          const connectionOutput = await run(
+            ['create', 'connection', '--a-chain', chainA.chainId, '--a-client', clientAId, '--b-client', clientBId],
+            Math.max(commandRetries, 1),
+          );
+          connectionId = extractLastMatch(connectionOutput, /connection-\d+/g);
+          log(`connection id: ${connectionId ?? 'unknown'}`);
+        } catch (error) {
+          log('create connection failed, trying to reuse existing connection');
+          connectionId = await findExistingConnectionId();
+          if (connectionId) log(`reused connection id: ${connectionId}`);
+          if (!connectionId) throw error;
+        }
+
+        const findExistingChannelId = async () => {
+          try {
+            const out = await run(
+              [
+                'query',
+                'channels',
+                '--chain',
+                chainA.chainId,
+                '--counterparty-chain',
+                chainB.chainId,
+                '--show-counterparty',
+                '--verbose',
+              ],
+              0,
+            );
+
+            const candidates = extractMatches(out, /channel-\d+/g).reverse();
+            for (const candidate of candidates) {
+              const details = await run(
+                ['query', 'channel', 'end', '--chain', chainA.chainId, '--port', 'transfer', '--channel', candidate],
+                0,
+              );
+
+              if (hasOpenState(details) && hasIdentifiers(details, [connectionId ?? 'connection-0', 'transfer'])) {
+                return candidate;
+              }
+            }
+
+            return undefined;
+          } catch {
+            return undefined;
+          }
+        };
+
+        log(`creating channel on connection ${connectionId ?? 'connection-0'}`);
+        try {
+          await run(
             [
-              'query',
-              'channels',
-              '--chain',
+              'create',
+              'channel',
+              '--a-chain',
               chainA.chainId,
-              '--counterparty-chain',
-              chainB.chainId,
-              '--show-counterparty',
-              '--verbose',
+              '--a-connection',
+              connectionId ?? 'connection-0',
+              '--a-port',
+              'transfer',
+              '--b-port',
+              'transfer',
             ],
-            0,
+            Math.max(commandRetries, 1),
           );
-
-          const candidates = extractMatches(out, /channel-\d+/g).reverse();
-          for (const candidate of candidates) {
-            const details = await run(
-              ['query', 'channel', 'end', '--chain', chainA.chainId, '--port', 'transfer', '--channel', candidate],
-              0,
-            );
-
-            if (hasOpenState(details) && hasIdentifiers(details, [connectionId ?? 'connection-0', 'transfer'])) {
-              return candidate;
-            }
+        } catch (error) {
+          log('create channel failed, trying to reuse existing channel');
+          const channelId = await findExistingChannelId();
+          if (channelId) {
+            log(`reused channel id: ${channelId}`);
+          } else {
+            throw error;
           }
-
-          return undefined;
-        } catch {
-          return undefined;
-        }
-      };
-
-      log(`creating channel on connection ${connectionId ?? 'connection-0'}`);
-      try {
-        await run(
-          [
-            'create',
-            'channel',
-            '--a-chain',
-            chainA.chainId,
-            '--a-connection',
-            connectionId ?? 'connection-0',
-            '--a-port',
-            'transfer',
-            '--b-port',
-            'transfer',
-          ],
-          Math.max(commandRetries, 1),
-        );
-      } catch (error) {
-        log('create channel failed, trying to reuse existing channel');
-        const channelId = await findExistingChannelId();
-        if (channelId) {
-          log(`reused channel id: ${channelId}`);
-        } else {
-          throw error;
         }
       }
-      log('channel ready, starting relayer');
+      log('all channels ready, starting relayer');
 
       // 4. Start relaying
       return processManager.start(binary, ['--config', configPath, 'start'], {
@@ -472,12 +466,11 @@ export const hermes = Instance.define((parameters: HermesParameters) => {
 });
 
 function generateConfig(opts: {
-  chainA: CosmosInstance;
-  chainB: CosmosInstance;
+  chains: CosmosInstance[];
   gasPrice: string;
   telemetryPort: number;
 }): string {
-  const { chainA, chainB, gasPrice, telemetryPort } = opts;
+  const { chains, gasPrice, telemetryPort } = opts;
 
   function chainSection(chain: CosmosInstance): string {
     const rpcUrl = `http://${chain.host}:${chain.port}`;
@@ -540,7 +533,6 @@ port = 3000
 enabled = false
 host = '127.0.0.1'
 port = ${telemetryPort}
-${chainSection(chainA)}
-${chainSection(chainB)}
+${chains.map(chainSection).join('')}
 `;
 }

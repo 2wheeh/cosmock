@@ -72,8 +72,7 @@ export default async function setup({ provide }: TestProject) {
 
   const relayer = Instance.hermes(
     {
-      chainA: ibcChainA,
-      chainB: ibcChainB,
+      channels: [[ibcChainA, ibcChainB]],
       mnemonic: RELAYER_MNEMONIC,
     },
     { timeout: process.env.CI ? 600_000 : 180_000 },
