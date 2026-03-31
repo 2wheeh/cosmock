@@ -11,22 +11,25 @@ jobs:
     name: Load config
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set.outputs.matrix }}
+      cosmwasm: ${{ steps.set.outputs.cosmwasm }}
+      standard: ${{ steps.set.outputs.standard }}
     steps:
       - uses: actions/checkout@v6
 
       - id: set
         run: |
-          echo "matrix=$(jq -c '{include: .binaries}' config/binaries.json)" >> "$GITHUB_OUTPUT"
+          echo "cosmwasm=$(jq -c '{include: [.binaries[] | select(.buildType == "cosmwasm")]}' config/binaries.json)" >> "$GITHUB_OUTPUT"
+          echo "standard=$(jq -c '{include: [.binaries[] | select(.buildType == "standard")]}' config/binaries.json)" >> "$GITHUB_OUTPUT"
 
-  build:
+  build-cosmwasm:
     name: Build ${{ matrix.name }}
     needs: prepare
+    if: fromJson(needs.prepare.outputs.cosmwasm).include[0] != null
     runs-on: ubuntu-latest
     container:
       image: golang:1.25-alpine
     strategy:
-      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.prepare.outputs.cosmwasm) }}
     steps:
       - uses: actions/checkout@v6
 
@@ -37,7 +40,6 @@ jobs:
         run: git clone --depth 1 --branch ${{ matrix.ref }} https://github.com/${{ matrix.repo }}.git /tmp/src
 
       - name: Download wasmvm static lib
-        if: matrix.buildType == 'cosmwasm'
         working-directory: /tmp/src
         run: |
           WASMVM_VERSION=$(go list -m github.com/CosmWasm/wasmvm/v3 2>/dev/null || go list -m github.com/CosmWasm/wasmvm/v2 2>/dev/null)
@@ -46,14 +48,44 @@ jobs:
 
       - name: Build binary
         working-directory: /tmp/src
+        run: |
+          mkdir -p build
+          LEDGER_ENABLED=false BUILD_TAGS=muslc LINK_STATICALLY=true make build
+
+      - name: Package
         env:
-          BUILD_TYPE: ${{ matrix.buildType }}
+          BINARY_NAME: ${{ matrix.name }}
+        run: gzip -c "/tmp/src/build/${BINARY_NAME}" > "/tmp/${BINARY_NAME}-linux-amd64.gz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: /tmp/${{ matrix.name }}-linux-amd64.gz
+
+  build-standard:
+    name: Build ${{ matrix.name }}
+    needs: prepare
+    if: fromJson(needs.prepare.outputs.standard).include[0] != null
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.prepare.outputs.standard) }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+
+      - name: Clone source
+        run: git clone --depth 1 --branch ${{ matrix.ref }} https://github.com/${{ matrix.repo }}.git /tmp/src
+
+      - name: Build binary
+        working-directory: /tmp/src
+        env:
           BUILD_CMD: ${{ matrix.buildCmd }}
         run: |
           mkdir -p build
-          if [ "$BUILD_TYPE" = "cosmwasm" ]; then
-            LEDGER_ENABLED=false BUILD_TAGS=muslc LINK_STATICALLY=true make build
-          elif [ -n "$BUILD_CMD" ]; then
+          if [ -n "$BUILD_CMD" ]; then
             sh -c "$BUILD_CMD"
           else
             make build
@@ -72,7 +104,8 @@ jobs:
   release:
     name: Create release
     runs-on: ubuntu-latest
-    needs: [prepare, build]
+    needs: [prepare, build-cosmwasm, build-standard]
+    if: always() && !failure() && !cancelled()
     steps:
       - uses: actions/checkout@v6
 
