@@ -2,72 +2,77 @@ name: Release Binaries
 
 on:
   workflow_dispatch:
-    inputs:
-      cosmos_sdk_ref:
-        description: 'cosmos-sdk git ref (branch/tag)'
-        default: 'v0.53.6'
-      wasmd_ref:
-        description: 'wasmd git ref (branch/tag)'
-        default: 'v0.61.9'
 
 permissions:
   contents: write
 
 jobs:
-  build-wasmd:
-    name: Build wasmd (static)
+  prepare:
+    name: Load config
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: set
+        run: |
+          echo "matrix=$(jq -c '{include: .binaries}' config/binaries.json)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: prepare
     runs-on: ubuntu-latest
     container:
       image: golang:1.25-alpine
+    strategy:
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v6
 
       - name: Install build deps
         run: apk add --no-cache ca-certificates build-base git
 
-      - name: Build wasmd
-        run: |
-          git clone --depth 1 --branch ${{ github.event.inputs.wasmd_ref }} https://github.com/CosmWasm/wasmd.git /tmp/wasmd-src
-          cd /tmp/wasmd-src
+      - name: Clone source
+        run: git clone --depth 1 --branch ${{ matrix.ref }} https://github.com/${{ matrix.repo }}.git /tmp/src
 
-          # Download libwasmvm static lib (same as official Dockerfile)
+      - name: Download wasmvm static lib
+        if: matrix.buildType == 'cosmwasm'
+        working-directory: /tmp/src
+        run: |
           WASMVM_VERSION=$(go list -m github.com/CosmWasm/wasmvm/v3 2>/dev/null || go list -m github.com/CosmWasm/wasmvm/v2 2>/dev/null)
           WASMVM_VERSION=${WASMVM_VERSION##* }
           wget -q "https://github.com/CosmWasm/wasmvm/releases/download/${WASMVM_VERSION}/libwasmvm_muslc.x86_64.a" -O /lib/libwasmvm_muslc.x86_64.a
 
-          LEDGER_ENABLED=false BUILD_TAGS=muslc LINK_STATICALLY=true make build
-          gzip -c /tmp/wasmd-src/build/wasmd > /tmp/wasmd-linux-amd64.gz
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wasmd
-          path: /tmp/wasmd-linux-amd64.gz
-
-  build-simd:
-    name: Build simd
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-go@v6
-        with:
-          go-version: '1.25'
-
-      - name: Build simd
+      - name: Build binary
+        working-directory: /tmp/src
+        env:
+          BUILD_TYPE: ${{ matrix.buildType }}
+          BUILD_CMD: ${{ matrix.buildCmd }}
         run: |
-          git clone --depth 1 --branch ${{ github.event.inputs.cosmos_sdk_ref }} https://github.com/cosmos/cosmos-sdk.git /tmp/cosmos-sdk
-          cd /tmp/cosmos-sdk/simapp && go build -o /tmp/simd ./simd/
-          gzip -c /tmp/simd > /tmp/simd-linux-amd64.gz
+          mkdir -p build
+          if [ "$BUILD_TYPE" = "cosmwasm" ]; then
+            LEDGER_ENABLED=false BUILD_TAGS=muslc LINK_STATICALLY=true make build
+          elif [ -n "$BUILD_CMD" ]; then
+            sh -c "$BUILD_CMD"
+          else
+            make build
+          fi
+
+      - name: Package
+        env:
+          BINARY_NAME: ${{ matrix.name }}
+        run: gzip -c "/tmp/src/build/${BINARY_NAME}" > "/tmp/${BINARY_NAME}-linux-amd64.gz"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: simd
-          path: /tmp/simd-linux-amd64.gz
+          name: ${{ matrix.name }}
+          path: /tmp/${{ matrix.name }}-linux-amd64.gz
 
   release:
     name: Create release
     runs-on: ubuntu-latest
-    needs: [build-wasmd, build-simd]
+    needs: [prepare, build]
     steps:
       - uses: actions/checkout@v6
 
@@ -81,8 +86,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="binaries/latest"
-          BODY="simd: cosmos-sdk@${{ github.event.inputs.cosmos_sdk_ref }}
-          wasmd: wasmd@${{ github.event.inputs.wasmd_ref }}
+
+          BODY=$(jq -r '.binaries[] | "- \(.name): \(.repo)@\(.ref)"' config/binaries.json)
+          BODY="${BODY}
+
           Platform: linux/amd64 (static)
           Updated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
@@ -94,5 +101,4 @@ jobs:
             --title "Prebuilt Binaries (latest)" \
             --notes "$BODY" \
             --prerelease \
-            /tmp/artifacts/simd-linux-amd64.gz \
-            /tmp/artifacts/wasmd-linux-amd64.gz
+            /tmp/artifacts/*-linux-amd64.gz

@@ -44,24 +44,39 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Download prebuilt binaries (simd, wasmd, hermes)
+      - name: Download prebuilt binaries
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release download "binaries/latest" --pattern "*.gz" --dir /tmp
-          gunzip -c /tmp/simd-linux-amd64.gz > /usr/local/bin/simd
-          gunzip -c /tmp/wasmd-linux-amd64.gz > /usr/local/bin/wasmd
 
-          HERMES_VERSION="v1.13.3"
-          gh release download "$HERMES_VERSION" \
-            --repo informalsystems/hermes \
-            --pattern "hermes-${HERMES_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
-            --dir /tmp
+          for name in $(jq -r '.binaries[].name' config/binaries.json); do
+            gunzip -c "/tmp/${name}-linux-amd64.gz" > "/usr/local/bin/${name}"
+            chmod +x "/usr/local/bin/${name}"
+          done
 
-          tar -xzf /tmp/hermes-${HERMES_VERSION}-x86_64-unknown-linux-gnu.tar.gz -C /tmp
-          mv /tmp/hermes /usr/local/bin/hermes
+      - name: Download external binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for row in $(jq -c '.external[]' config/binaries.json); do
+            name=$(echo "$row" | jq -r '.name')
+            repo=$(echo "$row" | jq -r '.repo')
+            ref=$(echo "$row" | jq -r '.ref')
+            asset=$(echo "$row" | jq -r '.asset' | sed "s/{ref}/$ref/g")
+            extract=$(echo "$row" | jq -r '.extract')
 
-          chmod +x /usr/local/bin/simd /usr/local/bin/wasmd /usr/local/bin/hermes
+            gh release download "$ref" --repo "$repo" --pattern "$asset" --dir /tmp
+
+            if [ "$extract" = "tar" ]; then
+              tar -xzf "/tmp/${asset}" -C /tmp
+            else
+              gunzip -c "/tmp/${asset}" > "/tmp/${name}"
+            fi
+
+            mv "/tmp/${name}" "/usr/local/bin/${name}"
+            chmod +x "/usr/local/bin/${name}"
+          done
 
       - name: Integration tests
         run: pnpm vitest run --project integration
