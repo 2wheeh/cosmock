@@ -4,10 +4,11 @@ import type { CosmosAccount, CosmosChainParameters, CosmosBaseParameters, EventT
 
 describe('smoke test (built output)', () => {
   describe('exports', () => {
-    it('exports Instance namespace with define, simd, wasmd', () => {
+    it('exports Instance namespace with define, simd, wasmd, gaiad', () => {
       expect(Instance.define).toBeTypeOf('function')
       expect(Instance.simd).toBeTypeOf('function')
       expect(Instance.wasmd).toBeTypeOf('function')
+      expect(Instance.gaiad).toBeTypeOf('function')
     })
 
     it('exports cosmosBase', () => {
@@ -58,6 +59,16 @@ describe('smoke test (built output)', () => {
     it('creates an instance with default values', () => {
       const instance = Instance.wasmd()
       expect(instance.name).toBe('wasmd')
+      expect(instance.host).toBe('localhost')
+      expect(instance.port).toBe(26657)
+      expect(instance.status).toBe('idle')
+    })
+  })
+
+  describe('Instance.gaiad', () => {
+    it('creates an instance with default values', () => {
+      const instance = Instance.gaiad()
+      expect(instance.name).toBe('gaiad')
       expect(instance.host).toBe('localhost')
       expect(instance.port).toBe(26657)
       expect(instance.status).toBe('idle')
