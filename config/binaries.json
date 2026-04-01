@@ -16,7 +16,7 @@
     {
       "name": "gaiad",
       "repo": "cosmos/gaia",
-      "ref": "v27.0.0",
+      "ref": "v21.0.1",
       "buildType": "standard"
     }
   ],

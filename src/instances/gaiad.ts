@@ -10,6 +10,7 @@ export type GaiadParameters = CosmosChainParameters & {
  * Defines a gaiad (Cosmos Hub) instance.
  *
  * Includes IBC module but no CosmWasm. Useful as an IBC counterparty chain.
+ * Patches feemarket genesis to set fee_denom and zero gas prices for testing.
  *
  * @example
  * ```ts
@@ -23,6 +24,17 @@ export type GaiadParameters = CosmosChainParameters & {
  * ```
  */
 export const gaiad = Instance.define((parameters?: GaiadParameters) => {
-  const { binary = 'gaiad', ...rest } = parameters || {}
-  return cosmosBase({ binary, name: 'gaiad', ...rest })
+  const { binary = 'gaiad', denom = 'stake', ...rest } = parameters || {}
+  return cosmosBase({
+    binary, name: 'gaiad', denom, ...rest,
+    patchGenesis: (genesis) => {
+      if (genesis.app_state.feemarket) {
+        const fm = genesis.app_state.feemarket
+        fm.params.fee_denom = denom
+        fm.params.min_base_gas_price = '0.001000000000000000'
+        fm.state.base_gas_price = '0.001000000000000000'
+      }
+      return genesis
+    },
+  })
 })
