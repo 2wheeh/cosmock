@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { GasPrice } from '@cosmjs/stargate'
 
-const rpcUrl = inject('wasmdRpcUrl')
+const rpcUrl = inject('wasmARpcUrl')
 const mnemonic = inject('testMnemonic')
 
 describe('wasmd instance', () => {

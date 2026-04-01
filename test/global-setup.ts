@@ -18,24 +18,23 @@ export default async function setup({ provide }: TestProject) {
   console.log('[global-setup] simd started');
   cleanups.push(() => simd.stop());
 
-  const wasmd = Instance.wasmd({
-    chainId: 'wasm-test-1',
-    denom: 'stake',
+  const wasmA = Instance.wasmd({
+    chainId: 'ibc-wasm-a',
+    prefix: 'wasm',
     rpcPort: 26757,
     grpcPort: 9190,
     apiPort: 1417,
     p2pPort: 26756,
     grpcWebPort: 9191,
     pprofPort: 6160,
-    accounts: [{ mnemonic: TEST_MNEMONIC, coins: '1000000000stake', name: 'alice' }],
+    accounts: [
+      { mnemonic: TEST_MNEMONIC, coins: '1000000000stake', name: 'alice' },
+      { mnemonic: RELAYER_MNEMONIC, coins: '1000000000stake', name: 'relayer' },
+    ],
   });
-  console.log('[global-setup] starting wasmd...');
-  await wasmd.start();
-  console.log('[global-setup] wasmd started');
-  cleanups.push(() => wasmd.stop());
 
-  const ibcChainA = Instance.wasmd({
-    chainId: 'ibc-a',
+  const wasmB = Instance.wasmd({
+    chainId: 'ibc-wasm-b',
     prefix: 'wasm',
     rpcPort: 26857,
     grpcPort: 9290,
@@ -49,9 +48,9 @@ export default async function setup({ provide }: TestProject) {
     ],
   });
 
-  const ibcChainB = Instance.wasmd({
-    chainId: 'ibc-b',
-    prefix: 'wasm',
+  const gaia = Instance.gaiad({
+    chainId: 'ibc-cosmos-1',
+    denom: 'uatom',
     rpcPort: 26957,
     grpcPort: 9390,
     apiPort: 1617,
@@ -59,23 +58,24 @@ export default async function setup({ provide }: TestProject) {
     grpcWebPort: 9391,
     pprofPort: 6360,
     accounts: [
-      { mnemonic: TEST_MNEMONIC, coins: '1000000000stake', name: 'alice' },
-      { mnemonic: RELAYER_MNEMONIC, coins: '1000000000stake', name: 'relayer' },
+      { mnemonic: TEST_MNEMONIC, coins: '1000000000uatom', name: 'alice' },
+      { mnemonic: RELAYER_MNEMONIC, coins: '1000000000uatom', name: 'relayer' },
     ],
   });
 
   console.log('[global-setup] starting ibc chains...');
-  await Promise.all([ibcChainA.start(), ibcChainB.start()]);
+  await Promise.all([wasmA.start(), wasmB.start(), gaia.start()]);
   console.log('[global-setup] ibc chains started');
-  cleanups.push(() => ibcChainA.stop());
-  cleanups.push(() => ibcChainB.stop());
+  cleanups.push(() => wasmA.stop());
+  cleanups.push(() => wasmB.stop());
+  cleanups.push(() => gaia.stop());
 
   const relayer = Instance.hermes(
     {
-      channels: [[ibcChainA, ibcChainB]],
+      channels: [[wasmA, wasmB], [wasmA, gaia], [wasmB, gaia]],
       mnemonic: RELAYER_MNEMONIC,
     },
-    { timeout: process.env.CI ? 600_000 : 180_000 },
+    { timeout: process.env.CI ? 300_000 : 180_000 },
   );
 
   const onRelayerMessage = (msg: string) => {
@@ -96,9 +96,9 @@ export default async function setup({ provide }: TestProject) {
   cleanups.push(() => relayer.stop());
 
   provide('simdRpcUrl', `http://localhost:${simd.port}`);
-  provide('wasmdRpcUrl', `http://localhost:${wasmd.port}`);
-  provide('ibcChainARpcUrl', `http://${ibcChainA.host}:${ibcChainA.port}`);
-  provide('ibcChainBRpcUrl', `http://${ibcChainB.host}:${ibcChainB.port}`);
+  provide('wasmARpcUrl', `http://${wasmA.host}:${wasmA.port}`);
+  provide('wasmBRpcUrl', `http://${wasmB.host}:${wasmB.port}`);
+  provide('gaiaRpcUrl', `http://${gaia.host}:${gaia.port}`);
   provide('testMnemonic', TEST_MNEMONIC);
 
   return async () => {
@@ -109,9 +109,9 @@ export default async function setup({ provide }: TestProject) {
 declare module 'vitest' {
   export interface ProvidedContext {
     simdRpcUrl: string;
-    wasmdRpcUrl: string;
-    ibcChainARpcUrl: string;
-    ibcChainBRpcUrl: string;
+    wasmARpcUrl: string;
+    wasmBRpcUrl: string;
+    gaiaRpcUrl: string;
     testMnemonic: string;
   }
 }

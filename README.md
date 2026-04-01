@@ -275,6 +275,7 @@ Recommended: fund multiple accounts in genesis, assign each test its own account
 
 ## TODO
 
+- [ ] `cosmosEvmBase` — EVM JSON-RPC port support for EVM-enabled chains (e.g. xpla, evmos)
 - [ ] `cosmock.config.ts` — config-based chain + relayer declaration
 - [ ] `cosmock/vitest` — vitest plugin (automatic setup/teardown via `vitestPlugin(config)`)
 - [ ] `cosmock/playwright` — playwright plugin (`playwrightPlugin(config)`)

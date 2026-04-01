@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
@@ -14,10 +14,11 @@ export default defineConfig({
         test: {
           name: 'integration',
           include: ['test/simd.test.ts', 'test/wasmd.test.ts', 'test/ibc.test.ts'],
+          fileParallelism: false,
           globalSetup: './test/global-setup.ts',
-          reporters: ['verbose'],
         },
       },
     ],
+    reporters: ['default', 'verbose'],
   },
-})
+});
