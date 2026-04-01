@@ -58,6 +58,8 @@ export type CosmosBaseParameters = CosmosChainParameters & {
   name: string
   /** Hook to patch genesis after default denom patching. */
   patchGenesis?: (genesis: any) => any
+  /** Additional app.toml patches. Merged after default patches. */
+  extraAppToml?: Record<string, string>
 }
 
 /**
@@ -85,6 +87,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
     grpcWebPort = 9091,
     pprofPort = 6060,
     patchGenesis,
+    extraAppToml,
   } = parameters
 
   const process = createProcess(name)
@@ -171,6 +174,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
         'grpc.address': `0.0.0.0:${grpcPort}`,
         'grpc-web.address': `0.0.0.0:${grpcWebPort}`,
         'minimum-gas-prices': minimumGasPrices ?? `0${denom}`,
+        ...extraAppToml,
       })
 
       // 6. Start and wait for first block
@@ -266,4 +270,39 @@ function patchToml(filePath: string, patches: Record<string, string>): void {
   }
 
   fs.writeFileSync(filePath, result.join('\n'))
+}
+
+/** Parameters for EVM-enabled Cosmos SDK chains. */
+export type CosmosEvmChainParameters = CosmosChainParameters & {
+  /** JSON-RPC (EVM) listen port. @default 8545 */
+  evmPort?: number
+}
+
+/** A Cosmos EVM chain instance with evmPort exposed. */
+export type CosmosEvmInstance = CosmosInstance & {
+  evmPort: number
+}
+
+/** Internal parameters for cosmosEvmBase. */
+export type CosmosEvmBaseParameters = CosmosEvmChainParameters & {
+  binary: string
+  name: string
+  patchGenesis?: (genesis: any) => any
+}
+
+/**
+ * Shared setup for EVM-enabled Cosmos SDK chains (e.g. xpla, evmos).
+ *
+ * Extends cosmosBase with JSON-RPC (EVM) port configuration in app.toml.
+ */
+export function cosmosEvmBase(parameters: CosmosEvmBaseParameters) {
+  const { evmPort = 8545, ...rest } = parameters
+  const base = cosmosBase({
+    ...rest,
+    extraAppToml: {
+      'json-rpc.enable': 'true',
+      'json-rpc.address': `0.0.0.0:${evmPort}`,
+    },
+  })
+  return { ...base, evmPort }
 }

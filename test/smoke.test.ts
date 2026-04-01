@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { Instance, cosmosBase } from '../dist/index.js'
-import type { CosmosAccount, CosmosChainParameters, CosmosBaseParameters, EventTypes } from '../dist/index.js'
+import { Instance, cosmosBase, cosmosEvmBase } from '../dist/index.js'
+import type { CosmosAccount, CosmosChainParameters, CosmosBaseParameters, CosmosEvmChainParameters, CosmosEvmBaseParameters, CosmosEvmInstance, EventTypes } from '../dist/index.js'
 
 describe('smoke test (built output)', () => {
   describe('exports', () => {
@@ -13,6 +13,10 @@ describe('smoke test (built output)', () => {
 
     it('exports cosmosBase', () => {
       expect(cosmosBase).toBeTypeOf('function')
+    })
+
+    it('exports cosmosEvmBase', () => {
+      expect(cosmosEvmBase).toBeTypeOf('function')
     })
   })
 

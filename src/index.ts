@@ -1,3 +1,3 @@
 export * as Instance from './Instance.js'
-export { cosmosBase, type CosmosAccount, type CosmosChainParameters, type CosmosBaseParameters, type CosmosInstance } from './cosmos.js'
+export { cosmosBase, cosmosEvmBase, type CosmosAccount, type CosmosChainParameters, type CosmosBaseParameters, type CosmosInstance, type CosmosEvmChainParameters, type CosmosEvmBaseParameters, type CosmosEvmInstance } from './cosmos.js'
 export type { EventTypes } from './process.js'
