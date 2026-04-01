@@ -9,7 +9,7 @@ export type GaiadParameters = CosmosChainParameters & {
 /**
  * Defines a gaiad (Cosmos Hub) instance.
  *
- * Includes IBC module but no CosmWasm. Useful as an IBC counterparty chain.
+ * Cosmos Hub chain with IBC and CosmWasm (v27+). Useful as an IBC counterparty chain.
  * Patches feemarket genesis to set fee_denom and zero gas prices for testing.
  *
  * @example
