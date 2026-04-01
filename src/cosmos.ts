@@ -108,6 +108,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
 
       const run = (args: string[]) =>
         x(binary, [...args, '--home', homeDir!], {
+          throwOnError: true,
           nodeOptions: { stdio: 'pipe' },
         })
 
