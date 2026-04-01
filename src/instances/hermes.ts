@@ -320,8 +320,16 @@ export const hermes = Instance.define((parameters: HermesParameters) => {
           '--reference-chain',
           chainA.chainId,
         ]);
-        const clientAId = extractLastMatch(clientAOutput, /07-tendermint-\d+/g) ?? '07-tendermint-0';
-        const clientBId = extractLastMatch(clientBOutput, /07-tendermint-\d+/g) ?? '07-tendermint-0';
+        const clientAId = extractLastMatch(clientAOutput, /07-tendermint-\d+/g);
+        const clientBId = extractLastMatch(clientBOutput, /07-tendermint-\d+/g);
+        if (!clientAId || !clientBId) {
+          log(`client creation failed — a: ${clientAId ?? 'not found'}, b: ${clientBId ?? 'not found'}`);
+          log(`clientA output: ${clientAOutput.trim().split('\n').slice(-3).join(' | ')}`);
+          log(`clientB output: ${clientBOutput.trim().split('\n').slice(-3).join(' | ')}`);
+          throw new Error(
+            `Failed to create IBC clients for ${chainA.chainId} <-> ${chainB.chainId}`,
+          );
+        }
         debugLog(`client ids: a=${clientAId}, b=${clientBId}`);
 
         const findExistingConnectionId = async () => {
@@ -356,7 +364,8 @@ export const hermes = Instance.define((parameters: HermesParameters) => {
             ['create', 'connection', '--a-chain', chainA.chainId, '--a-client', clientAId, '--b-client', clientBId],
             Math.max(commandRetries, 1),
           );
-          connectionId = extractLastMatch(connectionOutput, /connection-\d+/g);
+          const allConnections = extractMatches(connectionOutput, /connection-\d+/g);
+          connectionId = allConnections[0];
           log(`connection id: ${connectionId ?? 'unknown'}`);
         } catch (error) {
           log('create connection failed, trying to reuse existing connection');
