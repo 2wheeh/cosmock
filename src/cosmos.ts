@@ -50,6 +50,31 @@ export type CosmosInstance = Instance.Instance & {
   apiPort: number
 }
 
+/**
+ * Genesis JSON structure — covers fields cosmock reads/writes.
+ *
+ * Field names follow cosmos-sdk proto JSON representation (snake_case).
+ * Note: cosmjs-types uses camelCase — these types are intentionally
+ * snake_case to match the raw genesis.json output from cosmos binaries.
+ */
+export type Genesis = {
+  app_state: {
+    staking: { params: { bond_denom: string } }
+    mint: { params: { mint_denom: string } }
+    crisis?: { constant_fee?: { denom: string } }
+    gov?: {
+      deposit_params?: { min_deposit?: { denom: string }[] }
+      params?: { min_deposit?: { denom: string }[] }
+    }
+    bank?: { denom_metadata?: unknown[] }
+    feemarket?: {
+      params: { fee_denom: string; min_base_gas_price: string; [k: string]: unknown }
+      state: { base_gas_price: string; [k: string]: unknown }
+    }
+    [module: string]: unknown
+  }
+}
+
 /** Internal parameters for cosmosBase. Extends CosmosChainParameters with binary, name, and hooks. */
 export type CosmosBaseParameters = CosmosChainParameters & {
   /** Path to the binary. */
@@ -57,7 +82,7 @@ export type CosmosBaseParameters = CosmosChainParameters & {
   /** Instance name. */
   name: string
   /** Hook to patch genesis after default denom patching. */
-  patchGenesis?: (genesis: any) => any
+  patchGenesis?: (genesis: Genesis) => Genesis
   /** Additional app.toml patches. Merged after default patches. */
   extraAppToml?: Record<string, string>
 }
@@ -120,7 +145,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
 
       // 2. Patch genesis
       const genesisPath = path.join(homeDir, 'config', 'genesis.json')
-      let genesis = JSON.parse(fs.readFileSync(genesisPath, 'utf-8'))
+      let genesis: Genesis = JSON.parse(fs.readFileSync(genesisPath, 'utf-8'))
 
       genesis = patchDenom(genesis, denom)
       if (patchGenesis) genesis = patchGenesis(genesis)
@@ -186,7 +211,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
             try {
               const res = await fetch(`${rpcUrl}/status`)
               if (res.ok) {
-                const data = (await res.json()) as any
+                const data = await res.json() as { result?: { sync_info?: { latest_block_height?: string } } }
                 const height = Number(
                   data.result?.sync_info?.latest_block_height ?? 0,
                 )
@@ -219,7 +244,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
 }
 
 /** Patch common denom fields across SDK versions. */
-function patchDenom(genesis: any, denom: string): any {
+function patchDenom(genesis: Genesis, denom: string): Genesis {
   genesis.app_state.staking.params.bond_denom = denom
   genesis.app_state.mint.params.mint_denom = denom
 
@@ -287,7 +312,7 @@ export type CosmosEvmInstance = CosmosInstance & {
 export type CosmosEvmBaseParameters = CosmosEvmChainParameters & {
   binary: string
   name: string
-  patchGenesis?: (genesis: any) => any
+  patchGenesis?: (genesis: Genesis) => Genesis
 }
 
 /**
