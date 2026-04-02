@@ -281,6 +281,7 @@ Recommended: fund multiple accounts in genesis, assign each test its own account
 - [ ] `cosmock/playwright` — playwright plugin (`playwrightPlugin(config)`)
 - [ ] Automatic port allocation (avoid port conflicts in parallel tests)
 - [ ] `findFreePorts()` utility for direct `Instance` users
+- [ ] `cosmock/setup-binaries` GitHub Action for CI binary setup
 
 ## License
 
