@@ -44,26 +44,26 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Download prebuilt binaries
+      - name: Download source-built binaries
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release download "binaries/latest" --pattern "*.gz" --dir /tmp
 
-          for name in $(jq -r '.binaries[].name' config/binaries.json); do
+          for name in $(jq -r '.binaries[] | select(.buildType != "prebuilt") | .name' config/binaries.json); do
             gunzip -c "/tmp/${name}-linux-amd64.gz" > "/usr/local/bin/${name}"
             chmod +x "/usr/local/bin/${name}"
           done
 
-      - name: Download external binaries
+      - name: Download prebuilt binaries
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for row in $(jq -c '.external[]' config/binaries.json); do
+          for row in $(jq -c '.binaries[] | select(.buildType == "prebuilt")' config/binaries.json); do
             name=$(echo "$row" | jq -r '.name')
             repo=$(echo "$row" | jq -r '.repo')
             ref=$(echo "$row" | jq -r '.ref')
-            asset=$(echo "$row" | jq -r '.asset' | sed "s/{ref}/$ref/g")
+            asset=$(echo "$row" | jq -r '.asset')
             extract=$(echo "$row" | jq -r '.extract')
 
             gh release download "$ref" --repo "$repo" --pattern "$asset" --dir /tmp
@@ -71,7 +71,7 @@ jobs:
             if [ "$extract" = "tar" ]; then
               tar -xzf "/tmp/${asset}" -C /tmp
             else
-              gunzip -c "/tmp/${asset}" > "/tmp/${name}"
+              mv "/tmp/${asset}" "/tmp/${name}"
             fi
 
             mv "/tmp/${name}" "/usr/local/bin/${name}"
