@@ -400,7 +400,12 @@ export function cosmosEvmBase(parameters: CosmosEvmBaseParameters) {
           | { params: { active_static_precompiles?: readonly string[] } }
           | undefined
         if (evm?.params) {
-          evm.params.active_static_precompiles = [...activeStaticPrecompiles]
+          // cosmos-evm genesis validation requires the list to be sorted by
+          // bytes20 order. Normalize to lowercase + ascending sort so callers
+          // don't have to think about it.
+          evm.params.active_static_precompiles = activeStaticPrecompiles
+            .map((a) => a.toLowerCase())
+            .sort()
         }
       }
       return userPatch ? userPatch(genesis) : genesis
