@@ -1,9 +1,28 @@
 import * as Instance from '../Instance.js'
-import { cosmosEvmBase, type CosmosEvmChainParameters } from '../cosmos.js'
+import { cosmosEvmBase, type CosmosEvmChainParameters, type Genesis } from '../cosmos.js'
+
+/**
+ * Default active static precompiles for xplad.
+ * Mirrors `@xpla/evm` `PRECOMPILE_ADDRESSES` (v1.9.0). Frozen by chain consensus.
+ */
+export const XPLA_DEFAULT_PRECOMPILES: readonly string[] = [
+  '0x1000000000000000000000000000000000000005', // Auth
+  '0x1000000000000000000000000000000000000001', // Bank
+  '0x1000000000000000000000000000000000000004', // Wasm
+  '0x1000000000000000000000000000000000000044', // WasmDelegate
+  '0x0000000000000000000000000000000000000100', // P256
+  '0x0000000000000000000000000000000000000400', // Bech32
+  '0x0000000000000000000000000000000000000801', // Distribution
+  '0x0000000000000000000000000000000000000805', // Gov
+  '0x0000000000000000000000000000000000000806', // Slashing
+  '0x0000000000000000000000000000000000000800', // Staking
+]
 
 export type XpladParameters = CosmosEvmChainParameters & {
   /** Path to the xplad binary. @default "xplad" */
   binary?: string
+  /** Chain-specific genesis patch, chained after xplad's defaults. */
+  patchGenesis?: (genesis: Genesis) => Genesis
 }
 
 /**
@@ -23,6 +42,7 @@ export type XpladParameters = CosmosEvmChainParameters & {
  * ```
  */
 export const xplad = Instance.define((parameters?: XpladParameters) => {
+  const params = parameters || {}
   const {
     binary = 'xplad',
     chainId = 'dimension_37-1',
@@ -31,11 +51,19 @@ export const xplad = Instance.define((parameters?: XpladParameters) => {
     // 18-decimal denom needs large amounts: xpla DefaultPowerReduction ~ 1.37e12
     validatorBalance = '100000000000000000000000', // 1e23
     validatorStake = '10000000000000000000000',    // 1e22
+    patchGenesis: userPatch,
     ...rest
-  } = parameters || {}
+  } = params
+
+  // Preserve the three-state semantics of `activeStaticPrecompiles`:
+  // omitted → xpla default; explicit `undefined` → pass through (binary default);
+  // `[]` → disable all; `[...]` → overwrite.
+  const activeStaticPrecompiles =
+    'activeStaticPrecompiles' in params ? params.activeStaticPrecompiles : XPLA_DEFAULT_PRECOMPILES
 
   return cosmosEvmBase({
     binary, name: 'xpla', chainId, denom, prefix, validatorBalance, validatorStake, ...rest,
+    activeStaticPrecompiles,
     patchGenesis: (genesis) => {
       // xplad requires evm_denom and bank.denom_metadata to match the native denom
       const evm = (genesis.app_state as Record<string, unknown>).evm as
@@ -66,7 +94,7 @@ export const xplad = Instance.define((parameters?: XpladParameters) => {
         }]
       }
 
-      return genesis
+      return userPatch ? userPatch(genesis) : genesis
     },
   })
 })

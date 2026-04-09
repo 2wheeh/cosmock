@@ -347,6 +347,16 @@ export type CosmosEvmChainParameters = Omit<CosmosChainParameters, 'relayerHints
    * by `cosmosEvmBase`; only `hdPath` and `pkTypeUrl` are user-controllable.
    */
   relayerHints?: { hdPath?: string; pkTypeUrl?: string }
+  /**
+   * EVM static precompiles written to `evm.params.active_static_precompiles`.
+   *
+   * - `undefined` (omitted): genesis untouched, binary's compiled-in default applies.
+   * - `[]`: explicitly disable all precompiles.
+   * - `[...]`: overwrite with the given set.
+   *
+   * Instance wrappers (e.g. `xplad`) provide a chain-specific default.
+   */
+  activeStaticPrecompiles?: readonly string[]
 }
 
 /** A Cosmos EVM chain instance with evmPort exposed. */
@@ -367,7 +377,7 @@ export type CosmosEvmBaseParameters = CosmosEvmChainParameters & {
  * Extends cosmosBase with JSON-RPC (EVM) port configuration in app.toml.
  */
 export function cosmosEvmBase(parameters: CosmosEvmBaseParameters) {
-  const { evmPort = 8545, relayerHints, ...rest } = parameters
+  const { evmPort = 8545, relayerHints, activeStaticPrecompiles, patchGenesis: userPatch, ...rest } = parameters
   const base = cosmosBase({
     ...rest,
     extraAppToml: {
@@ -383,6 +393,17 @@ export function cosmosEvmBase(parameters: CosmosEvmBaseParameters) {
       addressDerivation: 'ethermint',
       pkTypeUrl: DEFAULT_COSMOS_EVM_PK_TYPE_URL,
       ...relayerHints,
+    },
+    patchGenesis: (genesis) => {
+      if (activeStaticPrecompiles !== undefined) {
+        const evm = (genesis.app_state as Record<string, unknown>).evm as
+          | { params: { active_static_precompiles?: readonly string[] } }
+          | undefined
+        if (evm?.params) {
+          evm.params.active_static_precompiles = [...activeStaticPrecompiles]
+        }
+      }
+      return userPatch ? userPatch(genesis) : genesis
     },
   })
   return { ...base, evmPort }
