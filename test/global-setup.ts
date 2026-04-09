@@ -74,6 +74,8 @@ export default async function setup({ provide }: TestProject) {
     evmPort: 18545,
     accounts: [
       { mnemonic: TEST_MNEMONIC, coins: '1000000000000000000000axpla', name: 'alice' },
+      // Relayer funding for Hermes — axpla is 18-decimal so use a large balance
+      { mnemonic: RELAYER_MNEMONIC, coins: '1000000000000000000000axpla', name: 'relayer' },
     ],
   });
 
@@ -87,7 +89,7 @@ export default async function setup({ provide }: TestProject) {
 
   const relayer = Instance.hermes(
     {
-      channels: [[wasmA, wasmB], [wasmA, gaia], [wasmB, gaia]],
+      channels: [[wasmA, wasmB], [wasmA, gaia], [wasmB, gaia], [wasmA, xpla]],
       mnemonic: RELAYER_MNEMONIC,
     },
     { timeout: process.env.CI ? 300_000 : 180_000 },

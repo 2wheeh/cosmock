@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import * as Instance from '../Instance.js';
-import type { CosmosInstance } from '../cosmos.js';
+import { DEFAULT_COSMOS_EVM_PK_TYPE_URL, type CosmosInstance } from '../cosmos.js';
 import { createProcess } from '../process.js';
 import { stripColors } from '../utils.js';
 
@@ -293,7 +293,14 @@ export const hermes = Instance.define((parameters: HermesParameters) => {
 
       for (const chain of uniqueChains) {
         debugLog(`adding key for chain ${chain.chainId}`);
-        await run(['keys', 'add', '--chain', chain.chainId, '--mnemonic-file', mnemonicFile, '--overwrite']);
+        const hdPath = chain.relayerHints?.hdPath ?? "m/44'/118'/0'/0/0";
+        await run([
+          'keys', 'add',
+          '--chain', chain.chainId,
+          '--mnemonic-file', mnemonicFile,
+          '--hd-path', hdPath,
+          '--overwrite',
+        ]);
       }
 
       // 3. Verify chains are reachable
@@ -485,6 +492,15 @@ function generateConfig(opts: {
     const rpcUrl = `http://${chain.host}:${chain.port}`;
     const grpcUrl = `http://${chain.host}:${chain.grpcPort}`;
 
+    // Assemble `address_type` inline-table from instance-advertised hints.
+    // Hermes cosmos derivation has no `proto_type` slot — only ethermint does.
+    const hints = chain.relayerHints;
+    const derivation = hints?.addressDerivation ?? 'cosmos';
+    const protoTypePart =
+      hints?.addressDerivation === 'ethermint'
+        ? `, proto_type = { pk_type = '${hints.pkTypeUrl ?? DEFAULT_COSMOS_EVM_PK_TYPE_URL}' }`
+        : '';
+
     return `
 [[chains]]
 id = '${chain.chainId}'
@@ -507,7 +523,7 @@ trusting_period = '14days'
 memo_prefix = ''
 sequential_batch_tx = false
 trust_threshold = { numerator = '1', denominator = '3' }
-address_type = { derivation = 'cosmos' }
+address_type = { derivation = '${derivation}'${protoTypePart} }
 `;
   }
 

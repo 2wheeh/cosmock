@@ -15,6 +15,32 @@ export type CosmosAccount = {
   name?: string
 }
 
+/** Default pk proto URL for ethermint-derivation chains (cosmos-evm module). */
+export const DEFAULT_COSMOS_EVM_PK_TYPE_URL = '/cosmos.evm.crypto.v1.ethsecp256k1.PubKey'
+
+/**
+ * Hermes relayer hints advertised by an instance. Mirrors the `AddressType`
+ * enum in ibc-rs: `cosmos` is a unit variant (secp256k1 only, no custom
+ * pk_type possible at the Hermes level), `ethermint` carries a `pk_type` URL.
+ *
+ * Instances get their defaults from `cosmosBase` / `cosmosEvmBase` and can
+ * override per-instance via the `relayerHints` parameter.
+ */
+export type CosmosRelayerHints =
+  | {
+      /** @default 'cosmos' */
+      addressDerivation?: 'cosmos'
+      /** @default "m/44'/118'/0'/0/0" */
+      hdPath?: string
+    }
+  | {
+      addressDerivation: 'ethermint'
+      /** @default "m/44'/60'/0'/0/0" */
+      hdPath?: string
+      /** @default {@link DEFAULT_COSMOS_EVM_PK_TYPE_URL} */
+      pkTypeUrl?: string
+    }
+
 /** Common parameters shared by all Cosmos SDK chain instances. */
 export type CosmosChainParameters = {
   /** Chain ID. @default "cosmock-1" */
@@ -43,6 +69,11 @@ export type CosmosChainParameters = {
   grpcWebPort?: number
   /** pprof listen port. @default 6060 */
   pprofPort?: number
+  /**
+   * Hermes relayer hints. Usually set by the instance wrapper (e.g.
+   * `cosmosEvmBase`), callers only override for custom chains.
+   */
+  relayerHints?: CosmosRelayerHints
 }
 
 /** A Cosmos chain instance with chain-specific config exposed. */
@@ -52,6 +83,8 @@ export type CosmosInstance = Instance.Instance & {
   prefix: string
   grpcPort: number
   apiPort: number
+  /** Relayer hints advertised by the instance for Hermes configuration. */
+  relayerHints?: CosmosRelayerHints
 }
 
 /**
@@ -119,6 +152,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
     pprofPort = 6060,
     patchGenesis,
     extraAppToml,
+    relayerHints,
   } = parameters
 
   const process = createProcess(name)
@@ -133,6 +167,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
     denom,
     grpcPort,
     apiPort,
+    relayerHints,
 
     async start(
       { port = rpcPort }: Instance.InstanceStartOptions,
@@ -304,9 +339,14 @@ function patchToml(filePath: string, patches: Record<string, string>): void {
 }
 
 /** Parameters for EVM-enabled Cosmos SDK chains. */
-export type CosmosEvmChainParameters = CosmosChainParameters & {
+export type CosmosEvmChainParameters = Omit<CosmosChainParameters, 'relayerHints'> & {
   /** JSON-RPC (EVM) listen port. @default 8545 */
   evmPort?: number
+  /**
+   * Ethermint-only overrides. `addressDerivation` is fixed to `'ethermint'`
+   * by `cosmosEvmBase`; only `hdPath` and `pkTypeUrl` are user-controllable.
+   */
+  relayerHints?: { hdPath?: string; pkTypeUrl?: string }
 }
 
 /** A Cosmos EVM chain instance with evmPort exposed. */
@@ -327,12 +367,22 @@ export type CosmosEvmBaseParameters = CosmosEvmChainParameters & {
  * Extends cosmosBase with JSON-RPC (EVM) port configuration in app.toml.
  */
 export function cosmosEvmBase(parameters: CosmosEvmBaseParameters) {
-  const { evmPort = 8545, ...rest } = parameters
+  const { evmPort = 8545, relayerHints, ...rest } = parameters
   const base = cosmosBase({
     ...rest,
     extraAppToml: {
       'json-rpc.enable': 'true',
       'json-rpc.address': `0.0.0.0:${evmPort}`,
+    },
+    // EVM-enabled Cosmos chains use eth_secp256k1 keys and ETH coin type 60.
+    // Default `pkTypeUrl` targets the cosmos-evm module proto (current
+    // upstream used by xpla, etc.). Legacy ethermint forks (evmos,
+    // injective, ...) can override with their own proto URL.
+    relayerHints: {
+      hdPath: "m/44'/60'/0'/0/0",
+      addressDerivation: 'ethermint',
+      pkTypeUrl: DEFAULT_COSMOS_EVM_PK_TYPE_URL,
+      ...relayerHints,
     },
   })
   return { ...base, evmPort }

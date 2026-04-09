@@ -89,6 +89,37 @@ describe('smoke test (built output)', () => {
       expect(instance.evmPort).toBe(8545)
       expect(instance.status).toBe('idle')
     })
+
+    it('advertises ethermint relayer hints for Hermes (eth_secp256k1 + coin type 60)', () => {
+      const instance = Instance.xplad()
+      const hints = instance.relayerHints
+      if (hints?.addressDerivation !== 'ethermint') throw new Error('expected ethermint')
+      expect(hints.hdPath).toBe("m/44'/60'/0'/0/0")
+      expect(hints.pkTypeUrl).toBe('/cosmos.evm.crypto.v1.ethsecp256k1.PubKey')
+    })
+  })
+
+  describe('relayer hints defaults', () => {
+    it('simd exposes no relayer hints (Hermes falls back to secp256k1 defaults)', () => {
+      const instance = Instance.simd()
+      expect(instance.relayerHints).toBeUndefined()
+    })
+
+    it('wasmd exposes no relayer hints', () => {
+      const instance = Instance.wasmd()
+      expect(instance.relayerHints).toBeUndefined()
+    })
+
+    it('caller can override cosmosEvmBase pkTypeUrl via relayerHints', () => {
+      const instance = Instance.xplad({
+        relayerHints: { pkTypeUrl: '/ethermint.crypto.v1.ethsecp256k1.PubKey' },
+      })
+      const hints = instance.relayerHints
+      if (hints?.addressDerivation !== 'ethermint') throw new Error('expected ethermint')
+      expect(hints.pkTypeUrl).toBe('/ethermint.crypto.v1.ethsecp256k1.PubKey')
+      // defaults from cosmosEvmBase still applied
+      expect(hints.hdPath).toBe("m/44'/60'/0'/0/0")
+    })
   })
 
   describe('Instance.define', () => {
