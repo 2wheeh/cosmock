@@ -63,12 +63,27 @@ export default async function setup({ provide }: TestProject) {
     ],
   });
 
-  console.log('[global-setup] starting ibc chains...');
-  await Promise.all([wasmA.start(), wasmB.start(), gaia.start()]);
-  console.log('[global-setup] ibc chains started');
+  const xpla = Instance.xplad({
+    chainId: 'dimension_37-1',
+    rpcPort: 27057,
+    grpcPort: 9490,
+    apiPort: 1717,
+    p2pPort: 27056,
+    grpcWebPort: 9491,
+    pprofPort: 6460,
+    evmPort: 18545,
+    accounts: [
+      { mnemonic: TEST_MNEMONIC, coins: '1000000000000000000000axpla', name: 'alice' },
+    ],
+  });
+
+  console.log('[global-setup] starting ibc chains + xpla...');
+  await Promise.all([wasmA.start(), wasmB.start(), gaia.start(), xpla.start()]);
+  console.log('[global-setup] chains started');
   cleanups.push(() => wasmA.stop());
   cleanups.push(() => wasmB.stop());
   cleanups.push(() => gaia.stop());
+  cleanups.push(() => xpla.stop());
 
   const relayer = Instance.hermes(
     {
@@ -99,6 +114,8 @@ export default async function setup({ provide }: TestProject) {
   provide('wasmARpcUrl', `http://${wasmA.host}:${wasmA.port}`);
   provide('wasmBRpcUrl', `http://${wasmB.host}:${wasmB.port}`);
   provide('gaiaRpcUrl', `http://${gaia.host}:${gaia.port}`);
+  provide('xplaRpcUrl', `http://${xpla.host}:${xpla.port}`);
+  provide('xplaEvmRpcUrl', `http://${xpla.host}:${xpla.evmPort}`);
   provide('testMnemonic', TEST_MNEMONIC);
 
   return async () => {
@@ -112,6 +129,8 @@ declare module 'vitest' {
     wasmARpcUrl: string;
     wasmBRpcUrl: string;
     gaiaRpcUrl: string;
+    xplaRpcUrl: string;
+    xplaEvmRpcUrl: string;
     testMnemonic: string;
   }
 }

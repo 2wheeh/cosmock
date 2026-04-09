@@ -27,6 +27,10 @@ export type CosmosChainParameters = {
   accounts?: CosmosAccount[]
   /** Minimum gas prices. @default "0{denom}" */
   minimumGasPrices?: string
+  /** Validator account initial balance (amount only, denom appended). @default "100000000000" */
+  validatorBalance?: string
+  /** Validator self-delegation amount (amount only, denom appended). @default "10000000" */
+  validatorStake?: string
   /** RPC listen address port. @default 26657 */
   rpcPort?: number
   /** gRPC listen port. @default 9090 */
@@ -105,6 +109,8 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
     prefix = 'cosmos',
     accounts = [],
     minimumGasPrices,
+    validatorBalance = '100000000000',
+    validatorStake = '10000000',
     rpcPort = 26657,
     grpcPort = 9090,
     apiPort = 1317,
@@ -156,7 +162,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
       await run(['keys', 'add', 'validator', '--keyring-backend', 'test'])
       await run([
         'genesis', 'add-genesis-account', 'validator',
-        `100000000000${denom}`, '--keyring-backend', 'test',
+        `${validatorBalance}${denom}`, '--keyring-backend', 'test',
       ])
 
       for (let i = 0; i < accounts.length; i++) {
@@ -180,7 +186,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
 
       // 4. Gentx + collect
       await run([
-        'genesis', 'gentx', 'validator', `10000000${denom}`,
+        'genesis', 'gentx', 'validator', `${validatorStake}${denom}`,
         '--chain-id', chainId, '--keyring-backend', 'test',
       ])
       await run(['genesis', 'collect-gentxs'])

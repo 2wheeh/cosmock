@@ -4,11 +4,12 @@ import type { Genesis, CosmosAccount, CosmosChainParameters, CosmosBaseParameter
 
 describe('smoke test (built output)', () => {
   describe('exports', () => {
-    it('exports Instance namespace with define, simd, wasmd, gaiad', () => {
+    it('exports Instance namespace with define, simd, wasmd, gaiad, xplad', () => {
       expect(Instance.define).toBeTypeOf('function')
       expect(Instance.simd).toBeTypeOf('function')
       expect(Instance.wasmd).toBeTypeOf('function')
       expect(Instance.gaiad).toBeTypeOf('function')
+      expect(Instance.xplad).toBeTypeOf('function')
     })
 
     it('exports cosmosBase', () => {
@@ -75,6 +76,17 @@ describe('smoke test (built output)', () => {
       expect(instance.name).toBe('gaiad')
       expect(instance.host).toBe('localhost')
       expect(instance.port).toBe(26657)
+      expect(instance.status).toBe('idle')
+    })
+  })
+
+  describe('Instance.xplad', () => {
+    it('creates an instance with default values and evmPort', () => {
+      const instance = Instance.xplad()
+      expect(instance.name).toBe('xpla')
+      expect(instance.host).toBe('localhost')
+      expect(instance.port).toBe(26657)
+      expect(instance.evmPort).toBe(8545)
       expect(instance.status).toBe('idle')
     })
   })
