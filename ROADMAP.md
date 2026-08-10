@@ -11,7 +11,7 @@
 - [ ] Make Hermes setup commands asynchronous, cancellable, and bounded by the instance timeout
 - [ ] Align Hermes telemetry readiness with its exposed endpoint
 - [ ] Fail early when required TOML keys drift from supported chain layouts
-- [ ] Validate `extraValidators` as a finite non-negative integer
+- [x] Validate `extraValidators` as a finite non-negative integer
 
 ## Public interface
 
