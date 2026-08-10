@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import * as Instance from './Instance.js'
-import { createCommandRunner, type CommandRunner } from './command.js'
+import { commandErrorMessage, createCommandRunner, type CommandRunner } from './command.js'
 import { sortCoins, toChecksumAddress } from './utils.js'
 import { CONTAINER_HOME } from './docker.js'
 import {
@@ -332,7 +332,10 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
           try {
             await runner.run(homeDir, recoverArgs, { input: `${account.mnemonic}\n` })
           } catch (error) {
-            throw new Error(`Failed to recover key "${keyName}".`, { cause: error })
+            throw new Error(
+              `Failed to recover key "${keyName}".\n${commandErrorMessage(error)}`,
+              { cause: error },
+            )
           }
 
           await run([

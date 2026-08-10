@@ -124,6 +124,7 @@ export function define<P = undefined, R extends DefineFnResult = DefineFnResult>
 
     let startOperation: Promise<() => void> | undefined
     let stopOperation: Promise<void> | undefined
+    let stopCleanupOperation: Promise<void> | undefined
     let restartOperation: Promise<void> | undefined
 
     const emitter = mitt<EventTypes>()
@@ -189,7 +190,6 @@ export function define<P = undefined, R extends DefineFnResult = DefineFnResult>
           let startTimer: ReturnType<typeof setTimeout> | undefined
           let timedOut = false
           const startTimeout = new Promise<never>((_, reject) => {
-            if (typeof timeout !== 'number') return
             startTimer = setTimeout(() => {
               timedOut = true
               const error = new Error(`Instance "${name}" failed to start in time.`)
@@ -226,7 +226,7 @@ export function define<P = undefined, R extends DefineFnResult = DefineFnResult>
             // Keeping the instance in `stopping` prevents an old child from
             // racing with a new start and overwriting shared runtime state.
             status = 'stopping'
-            stopOperation = Promise.resolve()
+            stopCleanupOperation = Promise.resolve()
               .then(() => stop({ emitter, status: self.status }))
               .then(
                 () => {
@@ -234,14 +234,14 @@ export function define<P = undefined, R extends DefineFnResult = DefineFnResult>
                   clearRuntimeState()
                 },
                 () => {
-                  // Keep retries blocked when teardown fails. The caller can
-                  // call stop() again without risking a second child process.
-                  status = 'started'
+                  // Startup never completed, so keep new starts blocked. A
+                  // later stop() can retry teardown from this state.
+                  status = 'stopping'
                 },
               )
               .finally(() => {
                 startOperation = undefined
-                stopOperation = undefined
+                stopCleanupOperation = undefined
               })
             throw error
           } finally {
@@ -255,6 +255,12 @@ export function define<P = undefined, R extends DefineFnResult = DefineFnResult>
 
       async stop(): Promise<void> {
         if (status === 'stopping' && stopOperation) return stopOperation
+        if (status === 'stopping' && stopCleanupOperation) {
+          await stopCleanupOperation
+          const settledStatus = status as InstanceStatus
+          if (settledStatus === 'idle' || settledStatus === 'stopped') return
+          return self.stop()
+        }
         if (status === 'starting') throw new Error(`Instance "${name}" is starting.`)
 
         status = 'stopping'
@@ -262,7 +268,6 @@ export function define<P = undefined, R extends DefineFnResult = DefineFnResult>
           let stopTimer: ReturnType<typeof setTimeout> | undefined
           let timedOut = false
           const stopTimeout = new Promise<never>((_, reject) => {
-            if (typeof timeout !== 'number') return
             stopTimer = setTimeout(() => {
               timedOut = true
               reject(new Error(`Instance "${name}" failed to stop in time.`))
@@ -280,7 +285,7 @@ export function define<P = undefined, R extends DefineFnResult = DefineFnResult>
             } else {
               // Keep `stopping` until the original teardown settles. A stop
               // timeout must not make a still-running instance restartable.
-              void rawStop
+              stopCleanupOperation = rawStop
                 .then(() => {
                   status = 'stopped'
                   clearRuntimeState()
@@ -289,13 +294,13 @@ export function define<P = undefined, R extends DefineFnResult = DefineFnResult>
                   status = 'started'
                 })
                 .finally(() => {
-                  stopOperation = undefined
+                  stopCleanupOperation = undefined
                 })
             }
             throw error
           } finally {
             if (stopTimer) clearTimeout(stopTimer)
-            if (!timedOut) stopOperation = undefined
+            stopOperation = undefined
           }
         })()
 
@@ -321,10 +326,11 @@ export function define<P = undefined, R extends DefineFnResult = DefineFnResult>
       off: emitter.off.bind(emitter),
     } satisfies Instance
 
-    const knownKeys = new Set(['name', 'host', 'port', 'start', 'stop'])
+    const knownKeys = new Set(Reflect.ownKeys(self))
     const extraDescriptors = Object.fromEntries(
-      Object.entries(Object.getOwnPropertyDescriptors(raw))
-        .filter(([key]) => !knownKeys.has(key)),
+      Reflect.ownKeys(raw)
+        .filter((key) => !knownKeys.has(key))
+        .map((key) => [key, Object.getOwnPropertyDescriptor(raw, key)!]),
     )
 
     return Object.defineProperties(self, extraDescriptors) as Omit<R, keyof DefineFnResult> & Instance
