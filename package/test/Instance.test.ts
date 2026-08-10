@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import mitt from 'mitt';
 import * as Instance from '../src/Instance.js';
 import { createProcess, type EventTypes } from '../src/process.js';
@@ -47,6 +47,8 @@ function fakeInstance(options?: { startDelay?: number; stopDelay?: number }) {
   };
 }
 
+afterEach(() => vi.useRealTimers());
+
 describe('Instance', () => {
   describe('define', () => {
     it('creates an instance with correct defaults', () => {
@@ -62,6 +64,61 @@ describe('Instance', () => {
       const { instance } = fakeInstance();
       const inst = instance({ port: 4000 });
       expect(inst.port).toBe(4000);
+    });
+
+    it('preserves extra property descriptors from the definition', () => {
+      let value = 1;
+      const instance = Instance.define(() => ({
+        name: 'descriptors',
+        host: 'localhost',
+        port: 3000,
+        get currentValue() { return value; },
+        setValue(next: number) { value = next; },
+        async start() {},
+        async stop() {},
+      }));
+
+      const inst = instance();
+      expect(Object.getOwnPropertyDescriptor(inst, 'currentValue')?.get).toBeTypeOf('function');
+      expect(inst.currentValue).toBe(1);
+      inst.setValue(2);
+      expect(inst.currentValue).toBe(2);
+    });
+
+    it('does not let definition properties replace managed instance members', () => {
+      const instance = Instance.define(() => ({
+        name: 'reserved-members',
+        host: 'localhost',
+        port: 3000,
+        status: 'raw-status',
+        messages: 'raw-messages',
+        restart: 'raw-restart',
+        on: 'raw-on',
+        off: 'raw-off',
+        async start() {},
+        async stop() {},
+      }));
+
+      const inst = instance();
+      expect(inst.status).toBe('idle');
+      expect(inst.messages.get).toBeTypeOf('function');
+      expect(inst.restart).toBeTypeOf('function');
+      expect(inst.on).toBeTypeOf('function');
+      expect(inst.off).toBeTypeOf('function');
+    });
+
+    it('preserves symbol-keyed definition properties', () => {
+      const marker = Symbol('marker');
+      const instance = Instance.define(() => ({
+        name: 'symbol-descriptor',
+        host: 'localhost',
+        port: 3000,
+        [marker]: 'preserved',
+        async start() {},
+        async stop() {},
+      }));
+
+      expect(instance()[marker]).toBe('preserved');
     });
   });
 
@@ -179,6 +236,7 @@ describe('Instance', () => {
     });
 
     it('leaves the instance recoverable and stops the child after a start timeout', async () => {
+      vi.useFakeTimers();
       let stopCalls = 0;
       let hang = true;
 
@@ -196,13 +254,138 @@ describe('Instance', () => {
       }));
 
       const inst = instance({ timeout: 50 });
+      const startOperation = inst.start();
+      const startFailure = expect(startOperation).rejects.toThrow('failed to start in time');
+      await vi.advanceTimersByTimeAsync(50);
 
-      await expect(inst.start()).rejects.toThrow('failed to start in time');
+      await startFailure;
       expect(inst.status).toBe('idle');
       expect(stopCalls).toBe(1); // best-effort teardown of the hung child
 
       hang = false;
       await inst.start();
+      expect(inst.status).toBe('started');
+    });
+
+    it('does not allow a retry while timeout cleanup is still running', async () => {
+      vi.useFakeTimers();
+      let finishStop: (() => void) | undefined;
+      let receivedSignal: AbortSignal | undefined;
+
+      const instance = Instance.define(() => ({
+        name: 'cleanup-race',
+        host: 'localhost',
+        port: 3000,
+        async start(_opts, { signal }) {
+          receivedSignal = signal;
+          await new Promise<void>((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+          });
+        },
+        async stop({ emitter }) {
+          emitter.emit('exit', 0);
+          await new Promise<void>(resolve => { finishStop = resolve; });
+        },
+      }));
+
+      const inst = instance({ timeout: 20 });
+      const startOperation = inst.start();
+      const startFailure = expect(startOperation).rejects.toThrow('failed to start in time');
+      await vi.advanceTimersByTimeAsync(20);
+      await startFailure;
+
+      expect(receivedSignal?.aborted).toBe(true);
+      expect(inst.status).toBe('stopping');
+      await expect(inst.start()).rejects.toThrow('Status: stopping');
+
+      const joinedCleanup = inst.stop();
+      finishStop?.();
+      await joinedCleanup;
+      expect(inst.status).toBe('idle');
+    });
+
+    it('keeps starts blocked and allows teardown retry after start cleanup fails', async () => {
+      vi.useFakeTimers();
+      let stopCalls = 0;
+
+      const instance = Instance.define(() => ({
+        name: 'failed-start-cleanup',
+        host: 'localhost',
+        port: 3000,
+        async start(_opts, { signal }) {
+          await new Promise<void>((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+          });
+        },
+        async stop() {
+          stopCalls++;
+          if (stopCalls === 1) throw new Error('cleanup failed');
+        },
+      }));
+
+      const inst = instance({ timeout: 20 });
+      const startOperation = inst.start();
+      const startFailure = expect(startOperation).rejects.toThrow('failed to start in time');
+      await vi.advanceTimersByTimeAsync(20);
+      await startFailure;
+
+      expect(inst.status).toBe('stopping');
+      await expect(inst.start()).rejects.toThrow('Status: stopping');
+      await inst.stop();
+      expect(stopCalls).toBe(2);
+      expect(inst.status).toBe('stopped');
+    });
+
+    it('accepts zero and empty endpoint values from the runtime', async () => {
+      const instance = Instance.define(() => ({
+        name: 'endpoint',
+        host: 'localhost',
+        port: 3000,
+        async start(_opts, { emitter, setEndpoint }) {
+          setEndpoint?.({ host: '', port: 0 });
+          emitter.emit('listening', undefined);
+        },
+        async stop() {},
+      }));
+
+      const inst = instance();
+      await inst.start();
+      expect(inst.host).toBe('');
+      expect(inst.port).toBe(0);
+    });
+
+    it('waits for timed-out stop cleanup before restarting', async () => {
+      vi.useFakeTimers();
+      let finishStop: (() => void) | undefined;
+      let startCalls = 0;
+      const instance = Instance.define(() => ({
+        name: 'slow-stop',
+        host: 'localhost',
+        port: 3000,
+        async start(_opts, { emitter }) {
+          startCalls++;
+          emitter.emit('listening', undefined);
+        },
+        async stop({ emitter }) {
+          emitter.emit('exit', 0);
+          await new Promise<void>(resolve => { finishStop = resolve; });
+        },
+      }));
+
+      const inst = instance({ timeout: 20 });
+      await inst.start();
+      const stopOperation = inst.stop();
+      const stopFailure = expect(stopOperation).rejects.toThrow('failed to stop in time');
+      await vi.advanceTimersByTimeAsync(20);
+      await stopFailure;
+
+      const restartOperation = inst.restart();
+      expect(inst.status).toBe('restarting');
+      expect(startCalls).toBe(1);
+
+      finishStop?.();
+      await restartOperation;
+      expect(startCalls).toBe(2);
       expect(inst.status).toBe('started');
     });
   });
