@@ -61,6 +61,8 @@ export type InstanceStartOptions = {
 
 export type InstanceStartContext = {
   emitter: Emitter<EventTypes>
+  /** Aborted when the managed start operation times out. */
+  signal: AbortSignal
   setEndpoint?(endpoint: { host?: string; port?: number }): void
   status: InstanceStatus
 }
@@ -120,9 +122,9 @@ export function define<P = undefined, R extends DefineFnResult = DefineFnResult>
     let port = raw.port
     const { messageBuffer = 20, timeout = 60_000 } = options
 
-    let startResolver = Promise.withResolvers<() => void>()
-    let stopResolver = Promise.withResolvers<void>()
-    let restartResolver = Promise.withResolvers<void>()
+    let startOperation: Promise<() => void> | undefined
+    let stopOperation: Promise<void> | undefined
+    let restartOperation: Promise<void> | undefined
 
     const emitter = mitt<EventTypes>()
 
@@ -134,10 +136,34 @@ export function define<P = undefined, R extends DefineFnResult = DefineFnResult>
       messages.push(message)
       if (messages.length > messageBuffer) messages.shift()
     }
-    const onListening = () => { status = 'started' }
-    const onExit = () => { status = 'stopped' }
+    const onListening = () => {
+      if (status === 'starting') status = 'started'
+    }
+    const onExit = () => {
+      // A managed stop owns the transition to `stopped` after all cleanup is
+      // complete. Exit events only represent an unexpected running-process
+      // exit; changing state while `stopping` would reopen start too early.
+      if (status === 'started') status = 'stopped'
+    }
 
-    const self = {
+    const subscribe = () => {
+      emitter.on('message', onMessage)
+      emitter.on('listening', onListening)
+      emitter.on('exit', onExit)
+    }
+
+    const unsubscribe = () => {
+      emitter.off('message', onMessage)
+      emitter.off('listening', onListening)
+      emitter.off('exit', onExit)
+    }
+
+    const clearRuntimeState = () => {
+      self.messages.clear()
+      unsubscribe()
+    }
+
+    const self: Instance = {
       get host() { return host },
       name,
       get port() { return port },
@@ -150,130 +176,145 @@ export function define<P = undefined, R extends DefineFnResult = DefineFnResult>
         get() { return [...messages] },
       },
 
-      async start() {
-        if (status === 'starting') return startResolver.promise
+      async start(): Promise<() => void> {
+        if (status === 'starting' && startOperation) return startOperation
         if (status !== 'idle' && status !== 'stopped')
           throw new Error(`Instance "${name}" is not in an idle or stopped state. Status: ${status}`)
 
-        let startTimer: ReturnType<typeof setTimeout> | undefined
-        // Guards the in-flight start(...) call's .then/.catch below: once the
-        // timeout fires, status/resolvers have already been reset (and a
-        // retry may be in flight), so a late settle must not touch them.
-        let timedOut = false
-        if (typeof timeout === 'number') {
-          startTimer = setTimeout(() => {
-            timedOut = true
-            status = 'idle'
-            self.messages.clear()
-            emitter.off('message', onMessage)
-            emitter.off('listening', onListening)
-            emitter.off('exit', onExit)
-            startResolver.reject(new Error(`Instance "${name}" failed to start in time.`))
-            startResolver = Promise.withResolvers<() => void>()
-            // Best-effort: the child may still be running post-timeout, so
-            // ask the underlying stop to tear it down. Never let this throw —
-            // the instance must remain retryable regardless of the outcome.
-            try {
-              void stop({ emitter, status: self.status }).catch(() => {})
-            } catch {
-              // ignore
-            }
-          }, timeout)
-        }
-
-        emitter.on('message', onMessage)
-        emitter.on('listening', onListening)
-        emitter.on('exit', onExit)
-
         status = 'starting'
-        start(
-          { port },
-          {
-            emitter,
-            setEndpoint(endpoint) {
-              if (endpoint.host) host = endpoint.host
-              if (endpoint.port) port = endpoint.port
-            },
-            status: self.status,
-          },
-        )
-          .then(() => {
-            if (startTimer) clearTimeout(startTimer)
-            if (timedOut) return
-            status = 'started'
-            stopResolver = Promise.withResolvers<void>()
-            startResolver.resolve(self.stop.bind(self))
-          })
-          .catch((error) => {
-            if (startTimer) clearTimeout(startTimer)
-            if (timedOut) return
-            status = 'idle'
-            self.messages.clear()
-            emitter.off('message', onMessage)
-            emitter.off('listening', onListening)
-            emitter.off('exit', onExit)
-            startResolver.reject(error)
-            startResolver = Promise.withResolvers<() => void>()
+        subscribe()
+
+        const controller = new AbortController()
+        startOperation = (async () => {
+          let startTimer: ReturnType<typeof setTimeout> | undefined
+          let timedOut = false
+          const startTimeout = new Promise<never>((_, reject) => {
+            if (typeof timeout !== 'number') return
+            startTimer = setTimeout(() => {
+              timedOut = true
+              const error = new Error(`Instance "${name}" failed to start in time.`)
+              controller.abort(error)
+              reject(error)
+            }, timeout)
           })
 
-        return startResolver.promise
+          const rawStart = Promise.resolve().then(() => start(
+            { port },
+            {
+              emitter,
+              signal: controller.signal,
+              setEndpoint(endpoint) {
+                if (endpoint.host !== undefined) host = endpoint.host
+                if (endpoint.port !== undefined) port = endpoint.port
+              },
+              status: self.status,
+            },
+          ))
+
+          try {
+            await Promise.race([rawStart, startTimeout])
+            status = 'started'
+            return self.stop.bind(self)
+          } catch (error) {
+            if (!timedOut) {
+              status = 'idle'
+              clearRuntimeState()
+              throw error
+            }
+
+            // A timed-out start is not retryable until its teardown finishes.
+            // Keeping the instance in `stopping` prevents an old child from
+            // racing with a new start and overwriting shared runtime state.
+            status = 'stopping'
+            stopOperation = Promise.resolve()
+              .then(() => stop({ emitter, status: self.status }))
+              .then(
+                () => {
+                  status = 'idle'
+                  clearRuntimeState()
+                },
+                () => {
+                  // Keep retries blocked when teardown fails. The caller can
+                  // call stop() again without risking a second child process.
+                  status = 'started'
+                },
+              )
+              .finally(() => {
+                startOperation = undefined
+                stopOperation = undefined
+              })
+            throw error
+          } finally {
+            if (startTimer) clearTimeout(startTimer)
+            if (!timedOut) startOperation = undefined
+          }
+        })()
+
+        return startOperation
       },
 
-      async stop() {
-        if (status === 'stopping') return stopResolver.promise
+      async stop(): Promise<void> {
+        if (status === 'stopping' && stopOperation) return stopOperation
         if (status === 'starting') throw new Error(`Instance "${name}" is starting.`)
 
-        let stopTimer: ReturnType<typeof setTimeout> | undefined
-        if (typeof timeout === 'number') {
-          stopTimer = setTimeout(() => {
-            stopResolver.reject(new Error(`Instance "${name}" failed to stop in time.`))
-          }, timeout)
-        }
-
         status = 'stopping'
-        stop({
-          emitter,
-          status: self.status,
-        })
-          .then((...args) => {
-            if (stopTimer) clearTimeout(stopTimer)
-            status = 'stopped'
-            self.messages.clear()
-            emitter.off('message', onMessage)
-            emitter.off('listening', onListening)
-            emitter.off('exit', onExit)
-            startResolver = Promise.withResolvers<() => void>()
-            stopResolver.resolve(...args)
+        stopOperation = (async () => {
+          let stopTimer: ReturnType<typeof setTimeout> | undefined
+          let timedOut = false
+          const stopTimeout = new Promise<never>((_, reject) => {
+            if (typeof timeout !== 'number') return
+            stopTimer = setTimeout(() => {
+              timedOut = true
+              reject(new Error(`Instance "${name}" failed to stop in time.`))
+            }, timeout)
           })
-          .catch((error) => {
-            if (stopTimer) clearTimeout(stopTimer)
-            status = 'started'
-            stopResolver.reject(error)
-            stopResolver = Promise.withResolvers<void>()
-          })
+          const rawStop = Promise.resolve().then(() => stop({ emitter, status: self.status }))
 
-        return stopResolver.promise
+          try {
+            await Promise.race([rawStop, stopTimeout])
+            status = 'stopped'
+            clearRuntimeState()
+          } catch (error) {
+            if (!timedOut) {
+              status = 'started'
+            } else {
+              // Keep `stopping` until the original teardown settles. A stop
+              // timeout must not make a still-running instance restartable.
+              void rawStop
+                .then(() => {
+                  status = 'stopped'
+                  clearRuntimeState()
+                })
+                .catch(() => {
+                  status = 'started'
+                })
+                .finally(() => {
+                  stopOperation = undefined
+                })
+            }
+            throw error
+          } finally {
+            if (stopTimer) clearTimeout(stopTimer)
+            if (!timedOut) stopOperation = undefined
+          }
+        })()
+
+        return stopOperation
       },
 
-      async restart() {
-        if (restarting) return restartResolver.promise
+      async restart(): Promise<void> {
+        if (restarting && restartOperation) return restartOperation
 
         restarting = true
-
-        self.stop()
+        restartOperation = self.stop()
           .then(() => self.start())
-          .then(() => {
+          .then(() => {})
+          .finally(() => {
             restarting = false
-            restartResolver.resolve()
-            restartResolver = Promise.withResolvers<void>()
-          })
-          .catch((error) => {
-            restarting = false
-            restartResolver.reject(error)
-            restartResolver = Promise.withResolvers<void>()
+            restartOperation = undefined
           })
 
-        return restartResolver.promise
+        return restartOperation
       },
 
       on: emitter.on.bind(emitter),
@@ -281,11 +322,11 @@ export function define<P = undefined, R extends DefineFnResult = DefineFnResult>
     } satisfies Instance
 
     const knownKeys = new Set(['name', 'host', 'port', 'start', 'stop'])
-    const extra: Record<string, unknown> = {}
-    for (const key of Object.keys(raw)) {
-      if (!knownKeys.has(key)) extra[key] = (raw as Record<string, unknown>)[key]
-    }
+    const extraDescriptors = Object.fromEntries(
+      Object.entries(Object.getOwnPropertyDescriptors(raw))
+        .filter(([key]) => !knownKeys.has(key)),
+    )
 
-    return Object.assign(self, extra) as Omit<R, keyof DefineFnResult> & Instance
+    return Object.defineProperties(self, extraDescriptors) as Omit<R, keyof DefineFnResult> & Instance
   }
 }

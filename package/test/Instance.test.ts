@@ -63,6 +63,25 @@ describe('Instance', () => {
       const inst = instance({ port: 4000 });
       expect(inst.port).toBe(4000);
     });
+
+    it('preserves extra property descriptors from the definition', () => {
+      let value = 1;
+      const instance = Instance.define(() => ({
+        name: 'descriptors',
+        host: 'localhost',
+        port: 3000,
+        get currentValue() { return value; },
+        setValue(next: number) { value = next; },
+        async start() {},
+        async stop() {},
+      }));
+
+      const inst = instance();
+      expect(Object.getOwnPropertyDescriptor(inst, 'currentValue')?.get).toBeTypeOf('function');
+      expect(inst.currentValue).toBe(1);
+      inst.setValue(2);
+      expect(inst.currentValue).toBe(2);
+    });
   });
 
   describe('lifecycle', () => {
@@ -204,6 +223,81 @@ describe('Instance', () => {
       hang = false;
       await inst.start();
       expect(inst.status).toBe('started');
+    });
+
+    it('does not allow a retry while timeout cleanup is still running', async () => {
+      let finishStop: (() => void) | undefined;
+      let receivedSignal: AbortSignal | undefined;
+
+      const instance = Instance.define(() => ({
+        name: 'cleanup-race',
+        host: 'localhost',
+        port: 3000,
+        async start(_opts, { signal }) {
+          receivedSignal = signal;
+          await new Promise<void>((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+          });
+        },
+        async stop({ emitter }) {
+          emitter.emit('exit', 0);
+          await new Promise<void>(resolve => { finishStop = resolve; });
+        },
+      }));
+
+      const inst = instance({ timeout: 20 });
+      await expect(inst.start()).rejects.toThrow('failed to start in time');
+
+      expect(receivedSignal?.aborted).toBe(true);
+      expect(inst.status).toBe('stopping');
+      await expect(inst.start()).rejects.toThrow('Status: stopping');
+
+      finishStop?.();
+      await vi.waitFor(() => expect(inst.status).toBe('idle'));
+    });
+
+    it('accepts zero and empty endpoint values from the runtime', async () => {
+      const instance = Instance.define(() => ({
+        name: 'endpoint',
+        host: 'localhost',
+        port: 3000,
+        async start(_opts, { emitter, setEndpoint }) {
+          setEndpoint?.({ host: '', port: 0 });
+          emitter.emit('listening', undefined);
+        },
+        async stop() {},
+      }));
+
+      const inst = instance();
+      await inst.start();
+      expect(inst.host).toBe('');
+      expect(inst.port).toBe(0);
+    });
+
+    it('does not allow a restart while a timed-out stop is still running', async () => {
+      let finishStop: (() => void) | undefined;
+      const instance = Instance.define(() => ({
+        name: 'slow-stop',
+        host: 'localhost',
+        port: 3000,
+        async start(_opts, { emitter }) {
+          emitter.emit('listening', undefined);
+        },
+        async stop({ emitter }) {
+          emitter.emit('exit', 0);
+          await new Promise<void>(resolve => { finishStop = resolve; });
+        },
+      }));
+
+      const inst = instance({ timeout: 20 });
+      await inst.start();
+      await expect(inst.stop()).rejects.toThrow('failed to stop in time');
+
+      expect(inst.status).toBe('stopping');
+      await expect(inst.start()).rejects.toThrow('Status: stopping');
+
+      finishStop?.();
+      await vi.waitFor(() => expect(inst.status).toBe('stopped'));
     });
   });
 
