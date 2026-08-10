@@ -7,15 +7,15 @@ import {
   startArgs as dockerStartArgs,
 } from './docker.js'
 import {
-  applyExecutionEnvironment,
-  type ExecutionDependency,
-} from './execution.js'
+  applyRuntimeEnvironment,
+  type RuntimeOptions,
+} from './runtime.js'
 import { createProcess, type ProcessStartOptions } from './process.js'
 
 type CommandRunnerOptions = {
   binary: string
   containerName: string
-  executionDependency?: ExecutionDependency
+  runtime?: RuntimeOptions
   image?: string
   name: string
   signal: AbortSignal
@@ -52,17 +52,17 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
   const {
     binary,
     containerName,
-    executionDependency,
+    runtime,
     image,
     name,
     signal,
   } = options
-  const environment = applyExecutionEnvironment(process.env, executionDependency)
+  const environment = applyRuntimeEnvironment(process.env, runtime)
   const managedProcess = createProcess(name)
   const dockerOptions = (homeDir: string) => ({
     image: image!,
     homeDir,
-    executionDependency,
+    runtime,
   })
 
   const oneShotCommand = (homeDir: string, args: string[], interactive = false) =>

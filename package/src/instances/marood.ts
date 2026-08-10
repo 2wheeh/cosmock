@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import * as Instance from '../Instance.js'
-import { cosmosEvmBaseWithExecutionDependency, type CosmosEvmChainParameters, type Genesis } from '../cosmos.js'
+import { cosmosEvmBase, type CosmosEvmChainParameters, type Genesis } from '../cosmos.js'
 import { resolveInstanceImage } from '../docker.js'
-import type { ExecutionDependency } from '../execution.js'
+import type { RuntimeOptions } from '../runtime.js'
 import { MAROO_PREINSTALLS, type EvmPreinstall } from './marood-preinstalls.js'
 
 export type { EvmPreinstall }
@@ -175,11 +175,11 @@ const PRIVACY_ZK_PREFLIGHT_MODE_ENV = 'CLAIRVEIL_PRIVACY_ZK_PREFLIGHT_MODE'
 const PRIVACY_ZK_RUNTIME_ENVIRONMENT_ENV = 'CLAIRVEIL_PRIVACY_ZK_RUNTIME_ENVIRONMENT'
 const TEST_PRIVACY_RELEASE_ENV = 'MAROO_TEST_PRIVACY_RELEASE_FROM_ARTIFACTS'
 
-/** @internal Translates the marood-specific option into the generic execution seam. */
-export function resolveMaroodPrivacyZkArtifacts(
+/** Translates the marood-specific option into custom-chain runtime options. */
+export function resolveMaroodPrivacyZkRuntime(
   artifacts: MaroodPrivacyZkArtifacts | undefined,
   containerRuntime: boolean,
-): ExecutionDependency | undefined {
+): RuntimeOptions | undefined {
   if (!artifacts) return undefined
 
   if (artifacts.kind !== 'generated-test' && artifacts.kind !== 'release') {
@@ -412,22 +412,23 @@ export const marood = Instance.define((parameters?: MaroodParameters) => {
 
   // No default image (private node source): image or binary required.
   const image = resolveInstanceImage('marood', params)
-  const privacyZkDependency = resolveMaroodPrivacyZkArtifacts(privacyZkArtifacts, Boolean(image))
+  const privacyZkRuntime = resolveMaroodPrivacyZkRuntime(privacyZkArtifacts, Boolean(image))
 
   // Same three-state semantics as evmd: omitted → maroo default set; explicit
   // `undefined` → binary default (empty); `[]` / `[...]` → as given.
   const activeStaticPrecompiles =
     'activeStaticPrecompiles' in params ? params.activeStaticPrecompiles : MAROO_DEFAULT_PRECOMPILES
 
-  return cosmosEvmBaseWithExecutionDependency({
+  return cosmosEvmBase({
     binary, name: 'marood', chainId, denom, prefix, validatorBalance, validatorStake,
     minimumGasPrices, ...rest,
     image,
+    runtime: privacyZkRuntime,
     // app.toml's compiled-in default is the mainnet EVM chain id; make the
     // preset authoritative for both networks.
     evmChainId: preset.evmChainId,
     activeStaticPrecompiles,
     patchGenesis: (genesis) =>
       patchMaroodGenesis(genesis, { preset, preinstalls, policyAdmin, minterAddress, entrypoints, patchGenesis: userPatch }),
-  }, privacyZkDependency)
+  })
 })

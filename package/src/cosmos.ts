@@ -5,7 +5,13 @@ import * as Instance from './Instance.js'
 import { commandErrorMessage, createCommandRunner, type CommandRunner } from './command.js'
 import { sortCoins, toChecksumAddress } from './utils.js'
 import { CONTAINER_HOME } from './docker.js'
-import type { ExecutionDependency } from './execution.js'
+import type { RuntimeOptions } from './runtime.js'
+
+/**
+ * Environment and read-only files required by a custom Cosmos chain.
+ * Applied to every lifecycle command by both local-process and Docker runtimes.
+ */
+export type CosmosRuntimeOptions = RuntimeOptions
 
 export type CosmosAccount = {
   /** BIP39 mnemonic for key derivation. */
@@ -145,7 +151,7 @@ export type Genesis = {
   }
 }
 
-/** Internal parameters for cosmosBase. Extends CosmosChainParameters with binary, name, and hooks. */
+/** Parameters for defining a custom chain with cosmosBase. */
 export type CosmosBaseParameters = CosmosChainParameters & {
   /** Path to the binary. */
   binary: string
@@ -179,6 +185,12 @@ export type CosmosBaseParameters = CosmosChainParameters & {
    * JSON-RPC (EVM) endpoint to come up.
    */
   extraReadinessCheck?: () => Promise<boolean>
+  /**
+   * Environment and read-only files applied to every chain CLI invocation.
+   * Intended for custom chain definitions; high-level Instance interfaces
+   * expose domain-specific options instead.
+   */
+  runtime?: CosmosRuntimeOptions
 }
 
 /**
@@ -191,13 +203,6 @@ export type CosmosBaseParameters = CosmosChainParameters & {
  * For custom chains, provide a `patchGenesis` hook for chain-specific genesis modifications.
  */
 export function cosmosBase(parameters: CosmosBaseParameters) {
-  return cosmosBaseWithExecutionDependency(parameters)
-}
-
-function cosmosBaseWithExecutionDependency(
-  parameters: CosmosBaseParameters,
-  dependency?: ExecutionDependency,
-) {
   const {
     binary,
     name,
@@ -224,6 +229,7 @@ function cosmosBaseWithExecutionDependency(
     extraReadinessCheck,
     relayerHints,
     image,
+    runtime,
   } = parameters
 
   if (!Number.isSafeInteger(extraValidators) || extraValidators < 0) {
@@ -297,9 +303,9 @@ function cosmosBaseWithExecutionDependency(
         runner = createCommandRunner({
           binary,
           containerName,
-          executionDependency: dependency,
           image,
           name,
+          runtime,
           signal,
         })
         await runner.prepare((message) => emitter.emit('message', message))
@@ -624,7 +630,7 @@ export type CosmosEvmInstance = CosmosInstance & {
   evmUrl: string
 }
 
-/** Internal parameters for cosmosEvmBase. */
+/** Parameters for defining a custom EVM chain with cosmosEvmBase. */
 export type CosmosEvmBaseParameters = CosmosEvmChainParameters & {
   binary: string
   name: string
@@ -637,6 +643,12 @@ export type CosmosEvmBaseParameters = CosmosEvmChainParameters & {
   extraConfigToml?: Record<string, string>
   /** Extra `start` command args, forwarded to cosmosBase. */
   extraStartArgs?: string[]
+  /**
+   * Environment and read-only files applied to every chain CLI invocation.
+   * Intended for custom chain definitions; high-level Instance interfaces
+   * expose domain-specific options instead.
+   */
+  runtime?: CosmosRuntimeOptions
 }
 
 /**
@@ -658,14 +670,6 @@ export function normalizeActiveStaticPrecompiles(precompiles: readonly string[])
  * Extends cosmosBase with JSON-RPC (EVM) port configuration in app.toml.
  */
 export function cosmosEvmBase(parameters: CosmosEvmBaseParameters) {
-  return cosmosEvmBaseWithExecutionDependency(parameters)
-}
-
-/** @internal Used by domain-specific wrappers that supply runtime files or environment. */
-export function cosmosEvmBaseWithExecutionDependency(
-  parameters: CosmosEvmBaseParameters,
-  dependency?: ExecutionDependency,
-) {
   const {
     evmChainId,
     evmPort = 8545,
@@ -693,7 +697,7 @@ export function cosmosEvmBaseWithExecutionDependency(
     )
   }
 
-  const base = cosmosBaseWithExecutionDependency({
+  const base = cosmosBase({
     ...rest,
     extraStartArgs: [
       ...(evmChainId === undefined
@@ -744,7 +748,7 @@ export function cosmosEvmBaseWithExecutionDependency(
         return false
       }
     },
-  }, dependency)
+  })
   return {
     ...base,
     evmPort,

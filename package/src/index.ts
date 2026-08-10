@@ -1,5 +1,5 @@
 export * as Instance from './Instance.js'
-export { cosmosBase, cosmosEvmBase, DEFAULT_COSMOS_EVM_PK_TYPE_URL, type Genesis, type CosmosAccount, type CosmosChainParameters, type CosmosBaseParameters, type CosmosInstance, type CosmosEvmChainParameters, type CosmosEvmBaseParameters, type CosmosEvmInstance, type CosmosRelayerHints } from './cosmos.js'
+export { cosmosBase, cosmosEvmBase, DEFAULT_COSMOS_EVM_PK_TYPE_URL, type Genesis, type CosmosAccount, type CosmosChainParameters, type CosmosBaseParameters, type CosmosRuntimeOptions, type CosmosInstance, type CosmosEvmChainParameters, type CosmosEvmBaseParameters, type CosmosEvmInstance, type CosmosRelayerHints } from './cosmos.js'
 export { SIMD_DEFAULT_IMAGE, type SimdParameters } from './instances/simd.js'
 export { GAIAD_DEFAULT_IMAGE, type GaiadParameters } from './instances/gaiad.js'
 export { WASMD_DEFAULT_IMAGE, type WasmdParameters } from './instances/wasmd.js'

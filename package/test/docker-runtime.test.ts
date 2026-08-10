@@ -3,8 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterAll, describe, it, expect } from 'vitest'
 import { resolveInstanceImage, runArgs, startArgs } from '../src/docker.js'
-import { applyExecutionEnvironment, type ExecutionDependency } from '../src/execution.js'
-import { resolveMaroodPrivacyZkArtifacts } from '../src/instances/marood.js'
+import { resolveMaroodPrivacyZkRuntime } from '../src/instances/marood.js'
+import { applyRuntimeEnvironment, type RuntimeOptions } from '../src/runtime.js'
 import {
   Instance,
   cosmosEvmBase,
@@ -160,12 +160,12 @@ afterAll(() => fs.rmSync(artifactDirectory, { recursive: true, force: true }))
 
 describe('marood Privacy ZK artifacts', () => {
   it('maps generated test artifacts for every Docker invocation', () => {
-    const dependency = resolveMaroodPrivacyZkArtifacts(
+    const runtime = resolveMaroodPrivacyZkRuntime(
       { kind: 'generated-test', directory: artifactDirectory },
       true,
     )
 
-    expect(dependency).toEqual({
+    expect(runtime).toEqual({
       environment: {
         CLAIRVEIL_PRIVACY_ZK_ARTIFACT_DIR: '/starskiff/privacy-zk-artifacts',
         CLAIRVEIL_PRIVACY_ZK_PREFLIGHT_MODE: 'strict',
@@ -179,7 +179,7 @@ describe('marood Privacy ZK artifacts', () => {
       }],
     })
 
-    const options = { image: 'maroo:local', homeDir: '/tmp/chain', executionDependency: dependency }
+    const options = { image: 'maroo:local', homeDir: '/tmp/chain', runtime }
     for (const args of [
       runArgs(options, 'marood', ['init', 'validator']),
       startArgs(options, 'marood', ['start'], { name: 'marood-test', ports: [] }),
@@ -192,12 +192,12 @@ describe('marood Privacy ZK artifacts', () => {
   })
 
   it('maps release artifacts to a local binary and removes a leaked test override', () => {
-    const dependency = resolveMaroodPrivacyZkArtifacts(
+    const runtime = resolveMaroodPrivacyZkRuntime(
       { kind: 'release', directory: artifactDirectory },
       false,
     )
 
-    expect(dependency).toEqual({
+    expect(runtime).toEqual({
       environment: {
         CLAIRVEIL_PRIVACY_ZK_ARTIFACT_DIR: artifactDirectory,
         CLAIRVEIL_PRIVACY_ZK_PREFLIGHT_MODE: 'strict',
@@ -207,22 +207,22 @@ describe('marood Privacy ZK artifacts', () => {
       mounts: undefined,
     })
 
-    const environment = applyExecutionEnvironment({
+    const environment = applyRuntimeEnvironment({
       KEEP_ME: 'yes',
       MAROO_TEST_PRIVACY_RELEASE_FROM_ARTIFACTS: '1',
-    }, dependency)
+    }, runtime)
     expect(environment.KEEP_ME).toBe('yes')
     expect(environment.MAROO_TEST_PRIVACY_RELEASE_FROM_ARTIFACTS).toBeUndefined()
     expect(environment.CLAIRVEIL_PRIVACY_ZK_ARTIFACT_DIR).toBe(artifactDirectory)
   })
 
   it('overrides a test opt-in baked into a release image with an empty value', () => {
-    const dependency = resolveMaroodPrivacyZkArtifacts(
+    const runtime = resolveMaroodPrivacyZkRuntime(
       { kind: 'release', directory: artifactDirectory },
       true,
-    ) as ExecutionDependency
+    ) as RuntimeOptions
     const args = runArgs(
-      { image: 'maroo:v0.8.0', homeDir: '/tmp/chain', executionDependency: dependency },
+      { image: 'maroo:v0.8.0', homeDir: '/tmp/chain', runtime },
       'marood',
       ['init', 'validator'],
     )
