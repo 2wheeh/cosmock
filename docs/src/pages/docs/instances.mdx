@@ -1,6 +1,6 @@
 # Instances [Prebuilt instance definitions]
 
-Every instance wraps the same lifecycle (`start` / `stop` / `restart`, events, status) around a specific node. All accept [`CosmosChainParameters`](/docs/api/instance#parameters) plus chain-specific extras.
+Every instance wraps the same lifecycle (`start` / `stop` / `restart`, events, status) around a specific process. Chain instances accept [`CosmosChainParameters`](/docs/api/instance#parameters) plus chain-specific extras; `hermes` instead accepts relayer channels and a mnemonic.
 
 One source rule for every chain instance: **image-first**. Where a usable, version-pinned image exists, it's the instance's default; where none exists, the node source is **required** — pass `image` (a container image ref) or `binary` (a local executable on `PATH`). The `hermes` relayer is the exception: not a chain node, it runs as a host binary. See the [container runtime guide](/docs/guides/docker).
 

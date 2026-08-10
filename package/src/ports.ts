@@ -48,12 +48,15 @@ function grabPort(): Promise<{ server: net.Server; port: number }> {
  */
 export async function findFreePorts(opts?: { evm?: boolean }): Promise<PortSet> {
   const keys = opts?.evm ? [...PORT_KEYS, 'evmPort' as const] : PORT_KEYS
+  const grabbed: Awaited<ReturnType<typeof grabPort>>[] = []
 
-  const grabbed = await Promise.all(keys.map(() => grabPort()))
-
-  await Promise.all(
-    grabbed.map(({ server }) => new Promise<void>((resolve) => server.close(() => resolve()))),
-  )
+  try {
+    for (const _key of keys) grabbed.push(await grabPort())
+  } finally {
+    await Promise.all(
+      grabbed.map(({ server }) => new Promise<void>((resolve) => server.close(() => resolve()))),
+    )
+  }
 
   const ports = {} as Record<(typeof keys)[number], number>
   keys.forEach((key, i) => {

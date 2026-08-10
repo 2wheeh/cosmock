@@ -4,6 +4,7 @@ Real Cosmos SDK nodes as ephemeral test instances — run from a local binary or
 
 - **Package**: [`package/`](./package) ([npm](https://www.npmjs.com/package/starskiff))
 - **Docs**: [`docs/`](./docs)
+- **Roadmap**: [`ROADMAP.md`](./ROADMAP.md)
 
 ```bash
 pnpm add -D starskiff
