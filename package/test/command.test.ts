@@ -1,7 +1,7 @@
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { createCommandRunner } from '../src/command.js'
+import { commandErrorMessage, createCommandRunner } from '../src/command.js'
 
 function localRunner(signal: AbortSignal) {
   return createCommandRunner({
@@ -13,6 +13,15 @@ function localRunner(signal: AbortSignal) {
 }
 
 describe('local command runner', () => {
+  it('surfaces command stderr before the generic error message', () => {
+    const error = Object.assign(new Error('command failed'), {
+      output: { stderr: ' invalid mnemonic\n' },
+    })
+
+    expect(commandErrorMessage(error)).toBe('invalid mnemonic')
+    expect(commandErrorMessage(new Error('fallback'))).toBe('fallback')
+  })
+
   it('passes stdin without blocking the event loop', async () => {
     const controller = new AbortController()
     const output = await localRunner(controller.signal).run(

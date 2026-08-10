@@ -4,12 +4,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // subcommands ran.
 const { calls, mockState } = vi.hoisted(() => ({
   calls: [] as { command: string; args: string[] }[],
-  mockState: { imagePresent: true, pullExitCode: 0, pullStderr: '' },
+  mockState: {
+    imagePresent: true,
+    pullExitCode: 0,
+    pullStderr: '',
+    onVersion: undefined as undefined | (() => void),
+  },
 }))
 
 vi.mock('tinyexec', () => ({
   x: vi.fn((command: string, args: string[] = []) => {
     calls.push({ command, args })
+    if (args[0] === 'version') mockState.onVersion?.()
     if (args[0] === 'image' && args[1] === 'inspect') {
       return Promise.resolve({ exitCode: mockState.imagePresent ? 0 : 1, stdout: '', stderr: '' })
     }
@@ -20,13 +26,24 @@ vi.mock('tinyexec', () => ({
   }),
 }))
 
-import { ensureImage } from '../src/docker.js'
+import { assertDockerAvailable, ensureImage } from '../src/docker.js'
 
 beforeEach(() => {
   calls.length = 0
   mockState.imagePresent = true
   mockState.pullExitCode = 0
   mockState.pullStderr = ''
+  mockState.onVersion = undefined
+})
+
+describe('assertDockerAvailable', () => {
+  it('propagates an abort even when tinyexec resolves the Docker probe', async () => {
+    const controller = new AbortController()
+    const reason = new Error('startup timed out')
+    mockState.onVersion = () => controller.abort(reason)
+
+    await expect(assertDockerAvailable('my/img:1', controller.signal)).rejects.toBe(reason)
+  })
 })
 
 describe('ensureImage', () => {

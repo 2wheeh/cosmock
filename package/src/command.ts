@@ -37,6 +37,17 @@ export type CommandRunner = {
   stop(): Promise<void>
 }
 
+/** Extracts actionable stderr from a failed tinyexec command. */
+export function commandErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object' && 'output' in error) {
+    const output = (error as { output?: { stderr?: unknown } }).output
+    if (typeof output?.stderr === 'string' && output.stderr.trim()) {
+      return output.stderr.trim()
+    }
+  }
+  return error instanceof Error ? error.message : String(error)
+}
+
 export function createCommandRunner(options: CommandRunnerOptions): CommandRunner {
   const {
     binary,

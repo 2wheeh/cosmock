@@ -183,6 +183,7 @@ export async function assertDockerAvailable(image: string, signal?: AbortSignal)
       throwOnError: true,
       nodeOptions: { stdio: 'pipe' },
     })
+    signal?.throwIfAborted()
   } catch {
     signal?.throwIfAborted()
     throw new Error(
