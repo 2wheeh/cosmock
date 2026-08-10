@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import * as Instance from '../Instance.js'
-import { cosmosEvmBase, type CosmosEvmChainParameters, type Genesis } from '../cosmos.js'
+import { cosmosEvmBaseWithExecutionDependency, type CosmosEvmChainParameters, type Genesis } from '../cosmos.js'
 import { resolveInstanceImage } from '../docker.js'
-import { executionDependency, type ExecutionDependency } from '../execution.js'
+import type { ExecutionDependency } from '../execution.js'
 import { MAROO_PREINSTALLS, type EvmPreinstall } from './marood-preinstalls.js'
 
 export type { EvmPreinstall }
@@ -419,7 +419,7 @@ export const marood = Instance.define((parameters?: MaroodParameters) => {
   const activeStaticPrecompiles =
     'activeStaticPrecompiles' in params ? params.activeStaticPrecompiles : MAROO_DEFAULT_PRECOMPILES
 
-  return cosmosEvmBase({
+  return cosmosEvmBaseWithExecutionDependency({
     binary, name: 'marood', chainId, denom, prefix, validatorBalance, validatorStake,
     minimumGasPrices, ...rest,
     image,
@@ -427,8 +427,7 @@ export const marood = Instance.define((parameters?: MaroodParameters) => {
     // preset authoritative for both networks.
     evmChainId: preset.evmChainId,
     activeStaticPrecompiles,
-    [executionDependency]: privacyZkDependency,
     patchGenesis: (genesis) =>
       patchMaroodGenesis(genesis, { preset, preinstalls, policyAdmin, minterAddress, entrypoints, patchGenesis: userPatch }),
-  })
+  }, privacyZkDependency)
 })

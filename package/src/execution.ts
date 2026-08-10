@@ -15,9 +15,6 @@ export type ExecutionDependency = {
   }[]
 }
 
-/** Symbol-keyed so generic execution settings do not become public chain options. */
-export const executionDependency = Symbol('starskiff.executionDependency')
-
 /** Builds an isolated child environment without mutating the parent process. */
 export function applyExecutionEnvironment(
   parent: NodeJS.ProcessEnv,

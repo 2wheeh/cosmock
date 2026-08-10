@@ -5,10 +5,7 @@ import * as Instance from './Instance.js'
 import { commandErrorMessage, createCommandRunner, type CommandRunner } from './command.js'
 import { sortCoins, toChecksumAddress } from './utils.js'
 import { CONTAINER_HOME } from './docker.js'
-import {
-  executionDependency,
-  type ExecutionDependency,
-} from './execution.js'
+import type { ExecutionDependency } from './execution.js'
 
 export type CosmosAccount = {
   /** BIP39 mnemonic for key derivation. */
@@ -182,8 +179,6 @@ export type CosmosBaseParameters = CosmosChainParameters & {
    * JSON-RPC (EVM) endpoint to come up.
    */
   extraReadinessCheck?: () => Promise<boolean>
-  /** @internal Chain wrappers translate domain options into this dependency. */
-  [executionDependency]?: ExecutionDependency
 }
 
 /**
@@ -196,6 +191,13 @@ export type CosmosBaseParameters = CosmosChainParameters & {
  * For custom chains, provide a `patchGenesis` hook for chain-specific genesis modifications.
  */
 export function cosmosBase(parameters: CosmosBaseParameters) {
+  return cosmosBaseWithExecutionDependency(parameters)
+}
+
+function cosmosBaseWithExecutionDependency(
+  parameters: CosmosBaseParameters,
+  dependency?: ExecutionDependency,
+) {
   const {
     binary,
     name,
@@ -222,7 +224,6 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
     extraReadinessCheck,
     relayerHints,
     image,
-    [executionDependency]: dependency,
   } = parameters
 
   if (!Number.isSafeInteger(extraValidators) || extraValidators < 0) {
@@ -636,8 +637,6 @@ export type CosmosEvmBaseParameters = CosmosEvmChainParameters & {
   extraConfigToml?: Record<string, string>
   /** Extra `start` command args, forwarded to cosmosBase. */
   extraStartArgs?: string[]
-  /** @internal Chain wrappers translate domain options into this dependency. */
-  [executionDependency]?: ExecutionDependency
 }
 
 /**
@@ -659,6 +658,14 @@ export function normalizeActiveStaticPrecompiles(precompiles: readonly string[])
  * Extends cosmosBase with JSON-RPC (EVM) port configuration in app.toml.
  */
 export function cosmosEvmBase(parameters: CosmosEvmBaseParameters) {
+  return cosmosEvmBaseWithExecutionDependency(parameters)
+}
+
+/** @internal Used by domain-specific wrappers that supply runtime files or environment. */
+export function cosmosEvmBaseWithExecutionDependency(
+  parameters: CosmosEvmBaseParameters,
+  dependency?: ExecutionDependency,
+) {
   const {
     evmChainId,
     evmPort = 8545,
@@ -686,7 +693,7 @@ export function cosmosEvmBase(parameters: CosmosEvmBaseParameters) {
     )
   }
 
-  const base = cosmosBase({
+  const base = cosmosBaseWithExecutionDependency({
     ...rest,
     extraStartArgs: [
       ...(evmChainId === undefined
@@ -737,7 +744,7 @@ export function cosmosEvmBase(parameters: CosmosEvmBaseParameters) {
         return false
       }
     },
-  })
+  }, dependency)
   return {
     ...base,
     evmPort,

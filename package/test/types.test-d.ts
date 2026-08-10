@@ -1,5 +1,6 @@
 import {
   Instance,
+  type CosmosBaseParameters,
   type CosmosEvmBaseParameters,
   type CosmosEvmChainParameters,
   type MaroodParameters,
@@ -33,6 +34,8 @@ expectTypeOf(simdChain.grpcPort).toBeNumber()
 expectTypeOf<CosmosEvmBaseParameters['evmChainId']>().toEqualTypeOf<number | undefined>()
 expectTypeOf<'evmChainId' extends keyof CosmosEvmChainParameters ? true : false>().toEqualTypeOf<false>()
 expectTypeOf<'evmChainId' extends keyof MaroodParameters ? true : false>().toEqualTypeOf<false>()
+expectTypeOf<Extract<keyof CosmosBaseParameters, symbol>>().toEqualTypeOf<never>()
+expectTypeOf<Extract<keyof CosmosEvmBaseParameters, symbol>>().toEqualTypeOf<never>()
 
 const privacyZkArtifacts: MaroodPrivacyZkArtifacts = {
   kind: 'generated-test',
