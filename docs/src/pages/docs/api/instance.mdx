@@ -34,6 +34,8 @@ EVM chains (`CosmosEvmChainParameters`) add:
 
 ## Options (second argument)
 
+The call contract is positional and does not inspect object keys: the first argument is always definition parameters, and the second is always lifecycle options. This means a custom parameter named `timeout` or `messageBuffer` remains a parameter.
+
 | Option          | Type     | Default | Description                        |
 | --------------- | -------- | ------- | ---------------------------------- |
 | `messageBuffer` | `number` | `20`    | Max messages stored in memory      |
@@ -41,6 +43,20 @@ EVM chains (`CosmosEvmChainParameters`) add:
 
 ```ts
 const instance = Instance.simd({ chainId: 'test-1' }, { timeout: 30_000 });
+```
+
+For a parameterless custom definition, pass `undefined` when supplying options:
+
+```ts
+const custom = Instance.define(() => ({
+  name: 'custom',
+  host: 'localhost',
+  port: 3000,
+  async start() {},
+  async stop() {},
+}));
+
+const instance = custom(undefined, { timeout: 30_000 });
 ```
 
 ## Methods

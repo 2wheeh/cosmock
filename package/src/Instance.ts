@@ -72,7 +72,8 @@ export type InstanceStopContext = {
   status: InstanceStatus
 }
 
-type DefineFnResult = {
+/** Values supplied by an instance definition before lifecycle management is applied. */
+export type InstanceDefinition = {
   name: string
   host: string
   port: number
@@ -80,12 +81,23 @@ type DefineFnResult = {
   stop(context: InstanceStopContext): Promise<void>
 }
 
+/** Callable returned by {@link define}. */
+export type InstanceFactory<
+  P,
+  R extends InstanceDefinition = InstanceDefinition,
+> = (
+  ...args: undefined extends P
+    ? [parameters?: P, options?: InstanceOptions]
+    : [parameters: P, options?: InstanceOptions]
+) => Omit<R, keyof InstanceDefinition> & Instance
+
 /**
  * Creates an instance definition.
  *
- * Takes a factory function that returns the instance's name, host, port,
- * and start/stop implementations. Returns a callable that creates
- * managed instances with lifecycle control.
+ * Takes a definition function that returns the instance's name, host, port,
+ * and start/stop implementations. The returned callable always treats its
+ * first argument as definition parameters and its second as lifecycle
+ * options. For a parameterless definition, pass `undefined` before options.
  *
  * @example
  * ```ts
@@ -97,25 +109,15 @@ type DefineFnResult = {
  *   async stop(ctx) { ... },
  * }))
  *
- * const instance = simd({ chainId: 'test-1' })
+ * const instance = simd({ chainId: 'test-1' }, { timeout: 30_000 })
  * instance.chainId // string — extra field preserved
  * await instance.start()
  * ```
  */
-export function define<P = undefined, R extends DefineFnResult = DefineFnResult>(
+export function define<P = undefined, R extends InstanceDefinition = InstanceDefinition>(
   fn: (parameters: P) => R,
-): (...args: P extends undefined ? [options?: InstanceOptions] : [parameters: P, options?: InstanceOptions]) => Omit<R, keyof DefineFnResult> & Instance {
-  return (...[parametersOrOptions, options_]: any[]) => {
-    const isInstanceOptions = (v: any): v is InstanceOptions =>
-      v != null && typeof v === 'object' && ('messageBuffer' in v || 'timeout' in v)
-
-    // When P = undefined: (options?) → first arg is options
-    // When P is defined: (params, options?) → first arg is params, second is options
-    const parameters = (options_ !== undefined || !isInstanceOptions(parametersOrOptions)
-      ? parametersOrOptions
-      : undefined) as P
-    const options: InstanceOptions = options_ ?? (isInstanceOptions(parametersOrOptions) ? parametersOrOptions : {})
-
+): InstanceFactory<P, R> {
+  return ((parameters: P, options: InstanceOptions = {}) => {
     const raw = fn(parameters)
     const { name, start, stop } = raw
     let host = raw.host
@@ -333,6 +335,6 @@ export function define<P = undefined, R extends DefineFnResult = DefineFnResult>
         .map((key) => [key, Object.getOwnPropertyDescriptor(raw, key)!]),
     )
 
-    return Object.defineProperties(self, extraDescriptors) as Omit<R, keyof DefineFnResult> & Instance
-  }
+    return Object.defineProperties(self, extraDescriptors) as Omit<R, keyof InstanceDefinition> & Instance
+  }) as InstanceFactory<P, R>
 }

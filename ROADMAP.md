@@ -15,7 +15,7 @@
 
 ## Public interface
 
-- [ ] Replace `Instance.define` parameter and option guessing with an explicit v1 contract
+- [x] Replace `Instance.define` parameter and option guessing with an explicit v1 contract
 - [ ] Encode the `image` or `binary` choice in types as well as runtime validation
 - [x] Centralize Cosmos EVM chain ID handling while keeping wrapper defaults explicit
 - [x] Keep generic runtime options on custom-chain builders and out of high-level Instance parameters
