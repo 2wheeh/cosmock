@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Instance } from '../src/index.js';
 import { computeExtraValidatorStake } from '../src/cosmos.js';
 
 /**
@@ -17,6 +18,15 @@ function primaryVotingFraction(validatorStake: string, extraValidators: number):
 }
 
 describe('computeExtraValidatorStake', () => {
+  it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid extraValidators=%s when the instance is created',
+    (extraValidators) => {
+      expect(() => Instance.simd({ extraValidators })).toThrow(
+        'extraValidators must be a finite non-negative integer',
+      );
+    },
+  );
+
   it('returns 0 when there are no extra validators', () => {
     expect(computeExtraValidatorStake('10000000', 0)).toBe(0n);
   });

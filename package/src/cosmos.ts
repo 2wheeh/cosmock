@@ -223,6 +223,10 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
     [executionDependency]: dependency,
   } = parameters
 
+  if (!Number.isSafeInteger(extraValidators) || extraValidators < 0) {
+    throw new Error('extraValidators must be a finite non-negative integer.')
+  }
+
   const host = 'localhost'
   let homeDir: string | undefined
   let healthPollTimer: ReturnType<typeof setTimeout> | undefined
