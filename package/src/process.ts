@@ -22,6 +22,8 @@ export type ProcessStartOptions = {
   emitter: Emitter<EventTypes>;
   /** Environment for the managed child process. */
   environment?: NodeJS.ProcessEnv;
+  /** Aborts the child process while it is starting. */
+  signal?: AbortSignal;
   resolver(options: ProcessResolverOptions): void;
 };
 
@@ -72,13 +74,14 @@ async function terminate(proc: ChildProcess, gracePeriodMs: number) {
 export function createProcess(name: string, options: ProcessOptions = {}): Process {
   const { killGracePeriod = 5_000 } = options;
   let child: ReturnType<typeof exec> | undefined;
-  const errorMessages: string[] = [];
 
   return {
-    start(command, args, { emitter, environment, resolver }) {
+    start(command, args, { emitter, environment, resolver, signal }) {
       const { promise, resolve, reject } = Promise.withResolvers<void>();
+      const errorMessages: string[] = [];
 
       child = exec(command, args, {
+        signal,
         nodeOptions: { stdio: 'pipe', env: environment },
       });
 

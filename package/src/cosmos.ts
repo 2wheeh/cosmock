@@ -1,21 +1,11 @@
 import fs from 'node:fs'
-import { spawnSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
-import { x } from 'tinyexec'
 import * as Instance from './Instance.js'
-import { createProcess } from './process.js'
+import { createCommandRunner, type CommandRunner } from './command.js'
 import { sortCoins, toChecksumAddress } from './utils.js'
+import { CONTAINER_HOME } from './docker.js'
 import {
-  assertDockerAvailable,
-  CONTAINER_HOME,
-  ensureImage,
-  removeContainer,
-  runArgs as dockerRunArgs,
-  startArgs as dockerStartArgs,
-} from './docker.js'
-import {
-  applyExecutionEnvironment,
   executionDependency,
   type ExecutionDependency,
 } from './execution.js'
@@ -233,10 +223,11 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
     [executionDependency]: dependency,
   } = parameters
 
-  const process = createProcess(name)
   const host = 'localhost'
   let homeDir: string | undefined
-  let healthPollInterval: ReturnType<typeof setInterval> | undefined
+  let healthPollTimer: ReturnType<typeof setTimeout> | undefined
+  let runner: CommandRunner | undefined
+  let cleanupOperation: Promise<void> | undefined
 
   // Container name for the docker runtime. Unique per instance so concurrent
   // chains (and leftovers from a crashed run) never collide.
@@ -244,25 +235,35 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
 
   // Shared by stop() and start()'s failure path so a half-started instance
   // (bootstrap threw, or the start timeout fired) leaves nothing behind:
-  // the health-poll interval, the child process, the container, and the temp
+  // the health-poll timer, the child process, the container, and the temp
   // home dir.
-  async function cleanup() {
-    if (healthPollInterval) {
-      clearInterval(healthPollInterval)
-      healthPollInterval = undefined
-    }
-    try {
-      await process.stop()
-    } catch {
-      // best-effort: tolerate an already-dead process
-    }
-    // Killing the `docker run` client doesn't necessarily reap the container,
-    // which would keep the published ports bound. Remove it explicitly.
-    if (image) await removeContainer(containerName)
-    if (homeDir) {
-      fs.rmSync(homeDir, { recursive: true, force: true })
-      homeDir = undefined
-    }
+  function cleanup() {
+    if (cleanupOperation) return cleanupOperation
+
+    cleanupOperation = (async () => {
+      if (healthPollTimer) {
+        clearTimeout(healthPollTimer)
+        healthPollTimer = undefined
+      }
+      try {
+        await runner?.stop()
+      } catch {
+        // best-effort: tolerate an already-dead process or container
+      }
+      runner = undefined
+      if (homeDir) {
+        try {
+          fs.rmSync(homeDir, { recursive: true, force: true })
+        } catch {
+          // best-effort: preserve the original start/stop error
+        }
+        homeDir = undefined
+      }
+    })().finally(() => {
+      cleanupOperation = undefined
+    })
+
+    return cleanupOperation
   }
 
   return {
@@ -281,37 +282,26 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
 
     async start(
       { port = rpcPort }: Instance.InstanceStartOptions,
-      { emitter }: Instance.InstanceStartContext,
+      { emitter, signal }: Instance.InstanceStartContext,
     ) {
       homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'starskiff-'))
 
       try {
-        if (image) {
-          await assertDockerAvailable(image)
-          await ensureImage(image, (message) => emitter.emit('message', message))
-        }
-
-        const childEnvironment = applyExecutionEnvironment(globalThis.process.env, dependency)
-        const dockerOptions = (commandHome: string) => ({
-          image: image!,
-          homeDir: commandHome,
+        runner = createCommandRunner({
+          binary,
+          containerName,
           executionDependency: dependency,
+          image,
+          name,
+          signal,
         })
+        await runner.prepare((message) => emitter.emit('message', message))
 
         // Both runtimes execute the same chain CLI against the same home dir —
         // docker just runs it inside a disposable container with that dir bind
         // mounted, so every step below (and the host-side genesis/config
         // patching) is runtime-agnostic.
-        const run = (args: string[]) =>
-          image
-            ? x('docker', dockerRunArgs(dockerOptions(homeDir!), binary, args), {
-                throwOnError: true,
-                nodeOptions: { stdio: 'pipe', env: childEnvironment },
-              })
-            : x(binary, [...args, '--home', homeDir!], {
-                throwOnError: true,
-                nodeOptions: { stdio: 'pipe', env: childEnvironment },
-              })
+        const run = (args: string[]) => runner!.run(homeDir!, args)
 
         // 1. Init chain
         await run(['init', 'validator', '--chain-id', chainId])
@@ -336,22 +326,13 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
           const account = accounts[i]
           const keyName = account.name || `test-${i}`
 
-          // tinyexec has no stdin, and `keys add --recover` prompts for the
-          // mnemonic — so this one step drops to spawnSync with a piped stdin
-          // (docker gets `-i` to keep the pipe open into the container).
+          // `keys add --recover` prompts for the mnemonic; the runner writes it
+          // to stdin asynchronously so start cancellation remains effective.
           const recoverArgs = ['keys', 'add', keyName, '--recover', '--keyring-backend', 'test']
-          const [recoverCmd, recoverArgv] = image
-            ? ['docker', dockerRunArgs(dockerOptions(homeDir!), binary, recoverArgs, { interactive: true })] as const
-            : [binary, [...recoverArgs, '--home', homeDir!]] as const
-
-          const result = spawnSync(recoverCmd, recoverArgv as string[], {
-            input: account.mnemonic + '\n',
-            stdio: ['pipe', 'pipe', 'pipe'],
-            env: childEnvironment,
-          })
-
-          if (result.status !== 0) {
-            throw new Error(`Failed to recover key "${keyName}": ${result.stderr?.toString()}`)
+          try {
+            await runner.run(homeDir, recoverArgs, { input: `${account.mnemonic}\n` })
+          } catch (error) {
+            throw new Error(`Failed to recover key "${keyName}".`, { cause: error })
           }
 
           await run([
@@ -381,16 +362,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
           const consHome = fs.mkdtempSync(path.join(os.tmpdir(), 'starskiff-cons-'))
           // The throwaway home is a *different* directory, so under docker it
           // needs its own bind mount rather than the instance's.
-          const runInConsHome = (args: string[]) =>
-            image
-              ? x('docker', dockerRunArgs(dockerOptions(consHome), binary, args), {
-                  throwOnError: true,
-                  nodeOptions: { stdio: 'pipe', env: childEnvironment },
-                })
-              : x(binary, [...args, '--home', consHome], {
-                  throwOnError: true,
-                  nodeOptions: { stdio: 'pipe', env: childEnvironment },
-                })
+          const runInConsHome = (args: string[]) => runner!.run(consHome, args)
           try {
             await runInConsHome(['init', valName, '--chain-id', chainId])
             // `comet show-validator` (SDK ≥ v0.50); older binaries only expose
@@ -416,7 +388,11 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
               '--chain-id', chainId, '--keyring-backend', 'test',
             ])
           } finally {
-            fs.rmSync(consHome, { recursive: true, force: true })
+            try {
+              fs.rmSync(consHome, { recursive: true, force: true })
+            } catch {
+              // best-effort: preserve the command error, if any
+            }
           }
         }
 
@@ -450,19 +426,9 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
         // stdout/stderr to the child process — message buffering, events and
         // exit detection below are identical for both runtimes.
         const startCliArgs = ['start', ...(extraStartArgs ?? [])]
-        const [startCmd, startArgv] = image
-          ? [
-              'docker',
-              dockerStartArgs(dockerOptions(homeDir), binary, startCliArgs, {
-                name: containerName,
-                ports: [port, p2pPort, apiPort, grpcPort, grpcWebPort, ...(extraPorts ?? [])],
-              }),
-            ] as const
-          : [binary, ['start', '--home', homeDir, ...(extraStartArgs ?? [])]] as const
-
-        return await process.start(startCmd, startArgv as string[], {
+        return await runner.start(homeDir, startCliArgs, {
           emitter,
-          environment: childEnvironment,
+          ports: [port, p2pPort, apiPort, grpcPort, grpcWebPort, ...(extraPorts ?? [])],
           resolver({ process: proc, resolve, reject }) {
             const rpcUrl = `http://localhost:${port}`
 
@@ -476,34 +442,40 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
             emitter.on('stdout', bufferOutput)
             emitter.on('stderr', bufferOutput)
 
-            healthPollInterval = setInterval(async () => {
+            let settled = false
+            const finish = () => {
+              settled = true
+              if (healthPollTimer) clearTimeout(healthPollTimer)
+              healthPollTimer = undefined
+              emitter.off('stdout', bufferOutput)
+              emitter.off('stderr', bufferOutput)
+            }
+            const poll = async () => {
               try {
-                const res = await fetch(`${rpcUrl}/status`)
+                const res = await fetch(`${rpcUrl}/status`, { signal })
                 if (res.ok) {
                   const data = await res.json() as { result?: { sync_info?: { latest_block_height?: string } } }
                   const height = Number(
                     data.result?.sync_info?.latest_block_height ?? 0,
                   )
                   if (height > 0 && (extraReadinessCheck ? await extraReadinessCheck() : true)) {
-                    clearInterval(healthPollInterval)
-                    healthPollInterval = undefined
+                    finish()
                     resolve()
+                    return
                   }
                 }
               } catch {
                 // Node not ready yet
               }
-            }, 250)
+              if (!settled && !signal.aborted) healthPollTimer = setTimeout(poll, 250)
+            }
+            void poll()
 
             proc.process?.on('exit', (code: number | null) => {
-              clearInterval(healthPollInterval)
-              healthPollInterval = undefined
-              emitter.off('stdout', bufferOutput)
-              emitter.off('stderr', bufferOutput)
-              if (code !== 0) {
-                const tail = recentOutput.join('').trim().split('\n').slice(-5).join(' | ')
-                reject(`${name} exited with code ${code}${tail ? `: ${tail}` : ''}`)
-              }
+              if (settled) return
+              finish()
+              const tail = recentOutput.join('').trim().split('\n').slice(-5).join(' | ')
+              reject(`${name} exited before readiness with code ${code}${tail ? `: ${tail}` : ''}`)
             })
           },
         })

@@ -176,13 +176,15 @@ export function startArgs(
 }
 
 /** Throws with an actionable message if the Docker CLI/daemon isn't usable. */
-export async function assertDockerAvailable(image: string): Promise<void> {
+export async function assertDockerAvailable(image: string, signal?: AbortSignal): Promise<void> {
   try {
     await x('docker', ['version', '--format', '{{.Server.Version}}'], {
+      signal,
       throwOnError: true,
       nodeOptions: { stdio: 'pipe' },
     })
   } catch {
+    signal?.throwIfAborted()
     throw new Error(
       `Docker is required to run the "${image}" instance but the daemon isn't reachable. ` +
       `Start Docker, or pass a "binary" parameter to run a local binary from PATH instead.`,
@@ -193,20 +195,32 @@ export async function assertDockerAvailable(image: string): Promise<void> {
 /**
  * Pulls the image if it isn't present locally.
  *
- * `docker run` would pull implicitly, but a cold pull of a few hundred MB can
- * outlast the instance start timeout and would be invisible in the logs — so
- * pull up front, before the clock on `start()` matters.
+ * `docker run` would pull implicitly, but a cold pull of a few hundred MB would
+ * be invisible in the logs and difficult to cancel. Pulling explicitly makes
+ * progress visible and lets the instance start timeout abort the download.
  *
  * A failed pull throws an actionable error rather than a raw exit code:
  * absent locally AND in the registry is the normal shape for locally-built,
  * never-published images (e.g. marood's `maroo:local`), so name that case.
  */
-export async function ensureImage(image: string, onMessage?: (message: string) => void): Promise<void> {
-  const present = await x('docker', ['image', 'inspect', image], { nodeOptions: { stdio: 'pipe' } })
+export async function ensureImage(
+  image: string,
+  onMessage?: (message: string) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const present = await x('docker', ['image', 'inspect', image], {
+    signal,
+    nodeOptions: { stdio: 'pipe' },
+  })
+  signal?.throwIfAborted()
   if (present.exitCode === 0) return
 
   onMessage?.(`[starskiff] pulling ${image} (first run)\n`)
-  const pulled = await x('docker', ['pull', image], { nodeOptions: { stdio: 'pipe' } })
+  const pulled = await x('docker', ['pull', image], {
+    signal,
+    nodeOptions: { stdio: 'pipe' },
+  })
+  signal?.throwIfAborted()
   if (pulled.exitCode === 0) return
 
   // Last few lines only — enough to tell auth failures from not-found.
