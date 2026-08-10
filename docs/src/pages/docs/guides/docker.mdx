@@ -85,5 +85,5 @@ Both runtimes work in CI. The container runtime removes the binary-provisioning 
 ## Caveats
 
 - **Docker becomes a hard dependency** for container-backed instances. On a machine without a running daemon, `start()` fails with an actionable error telling you to pass a `binary` instead.
-- **First run pays the pull** (a few hundred MB). It's pulled before the start clock matters, and cached after.
+- **First run pays the pull** (a few hundred MB). The pull is part of `start()`, reports progress through instance messages, obeys the start timeout, and is cached afterward.
 - On macOS, containers run in a VM, so filesystem I/O is slower than a native binary. Boot is still seconds, not minutes.

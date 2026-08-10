@@ -42,6 +42,8 @@ Every instance is **image-first**: where a usable, version-pinned image exists i
 pnpm add -D starskiff
 ```
 
+starskiff is ESM-only and supports Node.js 22 or newer.
+
 ### Prerequisites
 
 Image-backed instances (`simd`, `wasmd`, `gaiad`, `xplad`, `xrplevm`, `mantra`, `evmd`) need only a running **Docker** — the image is pulled on first use. The `hermes` relayer needs its binary on `PATH` (official releases at [informalsystems/hermes](https://github.com/informalsystems/hermes/releases)); `marood` (no default image) needs an injected source — an `image`, or a binary on `PATH`.

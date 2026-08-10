@@ -6,10 +6,16 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   ci:
-    name: Build & Test
+    name: Build & Unit (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v6
 
@@ -17,7 +23,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -30,6 +36,22 @@ jobs:
 
       - name: Unit & Smoke tests
         run: pnpm test:unit
+
+  docs:
+    name: Docs Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm docs:build
 
   integration:
     name: Integration Tests
@@ -65,9 +87,11 @@ jobs:
             repo=$(jq -r '.repo' <<<"$row")
             ref=$(jq -r '.ref' <<<"$row")
             asset=$(jq -r '.asset' <<<"$row")
+            checksum=$(jq -er '.sha256' <<<"$row")
             extract=$(jq -r '.extract // "none"' <<<"$row")  # null -> "none", not literal "null"
 
             gh release download "$ref" --repo "$repo" --pattern "$asset" --dir /tmp
+            echo "${checksum}  /tmp/${asset}" | sha256sum --check --strict
 
             if [ "$extract" = "tar" ]; then
               tar -xzf "/tmp/${asset}" -C /tmp
@@ -89,3 +113,32 @@ jobs:
       # excluded.
       - name: Feature tests (container runtime + multi-validator)
         run: pnpm --filter starskiff exec vitest run test/xplad-docker.test.ts test/evmd-docker.test.ts test/xrplevm-docker.test.ts test/mantra-docker.test.ts test/extra-validators.test.ts
+
+  release:
+    name: Release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [ci, docs, integration]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: changesets/action@v1
+        with:
+          publish: pnpm changeset publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ''
+          NPM_CONFIG_PROVENANCE: true

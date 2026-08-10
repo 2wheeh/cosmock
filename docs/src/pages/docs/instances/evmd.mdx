@@ -64,4 +64,4 @@ const instance = Instance.evmd({
 });
 ```
 
-The list is normalized (lowercased, byte-order sorted) before it's written — cosmos-evm genesis validation requires sorted addresses.
+The list is normalized to EIP-55 checksummed addresses and sorted by the stored strings before it's written — cosmos-evm genesis validation requires both the canonical casing and ordering.

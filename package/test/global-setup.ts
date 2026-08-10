@@ -7,6 +7,16 @@ const RELAYER_MNEMONIC = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong';
 
 export default async function setup({ provide }: TestProject) {
   const cleanups: (() => Promise<void>)[] = [];
+  const startAndRegister = async (instance: {
+    start(): Promise<() => void>;
+    stop(): Promise<void>;
+  }) => {
+    await instance.start();
+    cleanups.push(() => instance.stop());
+  };
+  const cleanupSettled = () => Promise.allSettled(
+    [...cleanups].reverse().map(cleanup => cleanup()),
+  );
 
   const simd = Instance.simd({
     chainId: 'starskiff-test-1',
@@ -14,9 +24,8 @@ export default async function setup({ provide }: TestProject) {
     accounts: [{ mnemonic: TEST_MNEMONIC, coins: '1000000000stake', name: 'alice' }],
   });
   console.log('[global-setup] starting simd...');
-  await simd.start();
+  await startAndRegister(simd);
   console.log('[global-setup] simd started');
-  cleanups.push(() => simd.stop());
 
   const wasmA = Instance.wasmd({
     chainId: 'ibc-wasm-a',
@@ -95,13 +104,19 @@ export default async function setup({ provide }: TestProject) {
   });
 
   console.log('[global-setup] starting ibc chains + xpla + evmd...');
-  await Promise.all([wasmA.start(), wasmB.start(), gaia.start(), xpla.start(), evmd.start()]);
+  const chainStarts = await Promise.allSettled([
+    startAndRegister(wasmA),
+    startAndRegister(wasmB),
+    startAndRegister(gaia),
+    startAndRegister(xpla),
+    startAndRegister(evmd),
+  ]);
+  const failedStart = chainStarts.find(result => result.status === 'rejected');
+  if (failedStart) {
+    await cleanupSettled();
+    throw failedStart.reason;
+  }
   console.log('[global-setup] chains started');
-  cleanups.push(() => wasmA.stop());
-  cleanups.push(() => wasmB.stop());
-  cleanups.push(() => gaia.stop());
-  cleanups.push(() => xpla.stop());
-  cleanups.push(() => evmd.stop());
 
   const relayer = Instance.hermes(
     {
@@ -121,12 +136,14 @@ export default async function setup({ provide }: TestProject) {
 
   console.log('[global-setup] starting hermes relayer...');
   try {
-    await relayer.start();
+    await startAndRegister(relayer);
+  } catch (error) {
+    await cleanupSettled();
+    throw error;
   } finally {
     relayer.off('message', onRelayerMessage);
   }
   console.log('[global-setup] hermes relayer started');
-  cleanups.push(() => relayer.stop());
 
   provide('simdRpcUrl', `http://localhost:${simd.port}`);
   provide('wasmARpcUrl', `http://${wasmA.host}:${wasmA.port}`);
@@ -139,7 +156,7 @@ export default async function setup({ provide }: TestProject) {
   provide('testMnemonic', TEST_MNEMONIC);
 
   return async () => {
-    await Promise.all(cleanups.map(fn => fn()));
+    await Promise.all([...cleanups].reverse().map(cleanup => cleanup()));
   };
 }
 
