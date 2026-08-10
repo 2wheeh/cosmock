@@ -87,7 +87,7 @@ describe('xrplevm chain identity', () => {
     expect(instance.evmChainId).toBe(1440001)
   })
 
-  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])('rejects invalid evmChainId=%s', (evmChainId) => {
+  it.each([null as unknown as number, 0, -1, 1.5, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])('rejects invalid evmChainId=%s', (evmChainId) => {
     expect(() => Instance.xrplevm({ evmChainId })).toThrow(
       'evmChainId must be a positive safe integer',
     )
@@ -110,6 +110,26 @@ describe('cosmosEvmBase chain identity', () => {
     expect(() => Instance.mantra({ evmChainId: Number.NaN })).toThrow(
       'evmChainId must be a positive safe integer',
     )
+  })
+
+  it.each([
+    ['--evm.evm-chain-id', '2'],
+    ['--evm.evm-chain-id=2'],
+  ])('rejects a duplicate raw EVM chain ID flag: %j', (...extraStartArgs) => {
+    expect(() => cosmosEvmBase({
+      binary: 'custom-evmd',
+      name: 'custom-evmd',
+      evmChainId: 1,
+      extraStartArgs,
+    })).toThrow('evmChainId cannot be combined with --evm.evm-chain-id')
+  })
+
+  it('preserves raw flag compatibility when evmChainId is omitted', () => {
+    expect(() => cosmosEvmBase({
+      binary: 'custom-evmd',
+      name: 'custom-evmd',
+      extraStartArgs: ['--evm.evm-chain-id=2'],
+    })).not.toThrow()
   })
 })
 

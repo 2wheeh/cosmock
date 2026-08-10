@@ -85,7 +85,9 @@ export const xrplevm = Instance.define((parameters?: XrplevmParameters) => {
   // Never use app.toml's compiled-in default (9999). An explicit override
   // wins; otherwise preserve the mainnet-style Cosmos ID inference and fall
   // back to XRPL EVM mainnet's 1440000.
-  const evmChainId = requestedEvmChainId ?? Number((chainId.match(/_(\d+)-/) ?? [])[1] ?? 1440000)
+  const evmChainId = requestedEvmChainId === undefined
+    ? Number((chainId.match(/_(\d+)-/) ?? [])[1] ?? 1440000)
+    : requestedEvmChainId
 
   // Preserve the three-state semantics of `activeStaticPrecompiles`:
   // omitted → xrplevm mainnet set; explicit `undefined` → pass through (binary

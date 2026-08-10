@@ -25,6 +25,8 @@ export type CosmosAccount = {
 /** Default pk proto URL for ethermint-derivation chains (cosmos-evm module). */
 export const DEFAULT_COSMOS_EVM_PK_TYPE_URL = '/cosmos.evm.crypto.v1.ethsecp256k1.PubKey'
 
+const EVM_CHAIN_ID_FLAG = '--evm.evm-chain-id'
+
 /**
  * Hermes relayer hints advertised by an instance. Mirrors the `AddressType`
  * enum in ibc-rs: `cosmos` is a unit variant (secp256k1 only, no custom
@@ -673,13 +675,23 @@ export function cosmosEvmBase(parameters: CosmosEvmBaseParameters) {
   ) {
     throw new Error('evmChainId must be a positive safe integer.')
   }
+  if (
+    evmChainId !== undefined &&
+    extraStartArgs.some((argument) =>
+      argument === EVM_CHAIN_ID_FLAG || argument.startsWith(`${EVM_CHAIN_ID_FLAG}=`),
+    )
+  ) {
+    throw new Error(
+      `evmChainId cannot be combined with ${EVM_CHAIN_ID_FLAG} in extraStartArgs.`,
+    )
+  }
 
   const base = cosmosBase({
     ...rest,
     extraStartArgs: [
       ...(evmChainId === undefined
         ? []
-        : ['--evm.evm-chain-id', String(evmChainId)]),
+        : [EVM_CHAIN_ID_FLAG, String(evmChainId)]),
       ...extraStartArgs,
     ],
     // Docker runtime: the JSON-RPC listener needs its port published too.
