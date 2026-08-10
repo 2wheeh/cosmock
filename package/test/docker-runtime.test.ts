@@ -70,6 +70,29 @@ describe('injection-required instances', () => {
   })
 })
 
+describe('xrplevm chain identity', () => {
+  it('preserves the mainnet-style Cosmos chain ID inference by default', () => {
+    expect(Instance.xrplevm().evmChainId).toBe(1440000)
+    expect(Instance.xrplevm({ chainId: 'xrplevm_1440002-1' }).evmChainId).toBe(1440002)
+  })
+
+  it('allows the EVM chain ID to be set independently of the Cosmos chain ID', () => {
+    const instance = Instance.xrplevm({
+      chainId: 'custom-xrplevm-local',
+      evmChainId: 1440001,
+    })
+
+    expect(instance.chainId).toBe('custom-xrplevm-local')
+    expect(instance.evmChainId).toBe(1440001)
+  })
+
+  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])('rejects invalid evmChainId=%s', (evmChainId) => {
+    expect(() => Instance.xrplevm({ evmChainId })).toThrow(
+      'evmChainId must be a positive safe integer',
+    )
+  })
+})
+
 describe('container-first default images', () => {
   it('simd uses the official simapp image (minor-line pin)', () => {
     expect(SIMD_DEFAULT_IMAGE).toBe('ghcr.io/cosmos/simapp:v0.53')

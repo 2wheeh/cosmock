@@ -19,6 +19,9 @@ expectTypeOf(chain.stop).toBeFunction()
 // simd too
 const simdChain = Instance.simd({ chainId: 'test' })
 expectTypeOf(simdChain.chainId).toBeString()
+
+const xrplevmChain = Instance.xrplevm({ chainId: 'custom-xrplevm', evmChainId: 1440001 })
+expectTypeOf(xrplevmChain.evmChainId).toBeNumber()
 expectTypeOf(simdChain.grpcPort).toBeNumber()
 
 const privacyZkArtifacts: MaroodPrivacyZkArtifacts = {

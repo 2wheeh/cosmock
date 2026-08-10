@@ -35,6 +35,8 @@ export type XrplevmParameters = CosmosEvmChainParameters & {
    * @default "exrpd" (only when opted in)
    */
   binary?: string
+  /** EVM JSON-RPC chain ID, independent of the Cosmos chain ID. @default derived from `chainId`, then 1440000 */
+  evmChainId?: number
   /** Chain-specific genesis patch, chained after xrplevm's defaults. */
   patchGenesis?: (genesis: Genesis) => Genesis
 }
@@ -73,15 +75,20 @@ export const xrplevm = Instance.define((parameters?: XrplevmParameters) => {
     // 18-decimal denom needs large amounts (power reduction 1e18).
     validatorBalance = '100000000000000000000000', // 1e23
     validatorStake = '10000000000000000000000',    // 1e22
+    evmChainId: requestedEvmChainId,
     patchGenesis: userPatch,
     ...rest
   } = params
 
   const image = resolveInstanceImage('xrplevm', params, XRPLEVM_DEFAULT_IMAGE)
 
-  // eth_chainId is NOT derived from the cosmos chain id — app.toml's
-  // compiled-in default is 9999. Mirror mainnet's 1440000 explicitly.
-  const evmChainId = Number((chainId.match(/_(\d+)-/) ?? [])[1] ?? 1440000)
+  // Never use app.toml's compiled-in default (9999). An explicit override
+  // wins; otherwise preserve the mainnet-style Cosmos ID inference and fall
+  // back to XRPL EVM mainnet's 1440000.
+  const evmChainId = requestedEvmChainId ?? Number((chainId.match(/_(\d+)-/) ?? [])[1] ?? 1440000)
+  if (!Number.isSafeInteger(evmChainId) || evmChainId <= 0) {
+    throw new Error('evmChainId must be a positive safe integer.')
+  }
 
   // Preserve the three-state semantics of `activeStaticPrecompiles`:
   // omitted → xrplevm mainnet set; explicit `undefined` → pass through (binary
@@ -89,7 +96,7 @@ export const xrplevm = Instance.define((parameters?: XrplevmParameters) => {
   const activeStaticPrecompiles =
     'activeStaticPrecompiles' in params ? params.activeStaticPrecompiles : XRPLEVM_DEFAULT_PRECOMPILES
 
-  return cosmosEvmBase({
+  const base = cosmosEvmBase({
     binary, name: 'xrplevm', chainId, denom, prefix, validatorBalance, validatorStake, ...rest,
     image,
     activeStaticPrecompiles,
@@ -144,4 +151,6 @@ export const xrplevm = Instance.define((parameters?: XrplevmParameters) => {
       return userPatch ? userPatch(genesis) : genesis
     },
   })
+
+  return { ...base, evmChainId }
 })
