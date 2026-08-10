@@ -5,10 +5,14 @@ import * as Instance from './Instance.js'
 import { commandErrorMessage, createCommandRunner, type CommandRunner } from './command.js'
 import { sortCoins, toChecksumAddress } from './utils.js'
 import { CONTAINER_HOME } from './docker.js'
-import {
-  executionDependency,
-  type ExecutionDependency,
-} from './execution.js'
+import type { RuntimeOptions } from './runtime.js'
+
+/**
+ * Runtime inputs required by a custom Cosmos chain. Environment settings
+ * apply to every local and container command; read-only mounts apply only to
+ * container commands.
+ */
+export type CosmosRuntimeOptions = RuntimeOptions
 
 export type CosmosAccount = {
   /** BIP39 mnemonic for key derivation. */
@@ -148,7 +152,7 @@ export type Genesis = {
   }
 }
 
-/** Internal parameters for cosmosBase. Extends CosmosChainParameters with binary, name, and hooks. */
+/** Parameters for defining a custom chain with cosmosBase. */
 export type CosmosBaseParameters = CosmosChainParameters & {
   /** Path to the binary. */
   binary: string
@@ -182,8 +186,13 @@ export type CosmosBaseParameters = CosmosChainParameters & {
    * JSON-RPC (EVM) endpoint to come up.
    */
   extraReadinessCheck?: () => Promise<boolean>
-  /** @internal Chain wrappers translate domain options into this dependency. */
-  [executionDependency]?: ExecutionDependency
+  /**
+   * Runtime inputs for every chain CLI invocation. Environment applies to
+   * local and container commands; mounts apply only to containers. Intended
+   * for custom chain definitions; high-level Instance interfaces expose
+   * domain-specific options instead.
+   */
+  runtime?: CosmosRuntimeOptions
 }
 
 /**
@@ -222,7 +231,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
     extraReadinessCheck,
     relayerHints,
     image,
-    [executionDependency]: dependency,
+    runtime,
   } = parameters
 
   if (!Number.isSafeInteger(extraValidators) || extraValidators < 0) {
@@ -296,9 +305,9 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
         runner = createCommandRunner({
           binary,
           containerName,
-          executionDependency: dependency,
           image,
           name,
+          runtime,
           signal,
         })
         await runner.prepare((message) => emitter.emit('message', message))
@@ -623,7 +632,7 @@ export type CosmosEvmInstance = CosmosInstance & {
   evmUrl: string
 }
 
-/** Internal parameters for cosmosEvmBase. */
+/** Parameters for defining a custom EVM chain with cosmosEvmBase. */
 export type CosmosEvmBaseParameters = CosmosEvmChainParameters & {
   binary: string
   name: string
@@ -636,8 +645,13 @@ export type CosmosEvmBaseParameters = CosmosEvmChainParameters & {
   extraConfigToml?: Record<string, string>
   /** Extra `start` command args, forwarded to cosmosBase. */
   extraStartArgs?: string[]
-  /** @internal Chain wrappers translate domain options into this dependency. */
-  [executionDependency]?: ExecutionDependency
+  /**
+   * Runtime inputs for every chain CLI invocation. Environment applies to
+   * local and container commands; mounts apply only to containers. Intended
+   * for custom chain definitions; high-level Instance interfaces expose
+   * domain-specific options instead.
+   */
+  runtime?: CosmosRuntimeOptions
 }
 
 /**

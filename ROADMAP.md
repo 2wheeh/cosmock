@@ -6,7 +6,7 @@
 
 - [x] Serialize instance timeout cleanup before allowing another start
 - [x] Hide local-binary and Docker execution behind one cancellable internal adapter
-- [x] Apply runtime dependencies to every Cosmos genesis and start command
+- [x] Apply runtime options to every Cosmos genesis and start command
 - [x] Reject node exits before readiness regardless of exit code
 - [ ] Make Hermes setup commands asynchronous, cancellable, and bounded by the instance timeout
 - [ ] Align Hermes telemetry readiness with its exposed endpoint
@@ -18,7 +18,7 @@
 - [ ] Replace `Instance.define` parameter and option guessing with an explicit v1 contract
 - [ ] Encode the `image` or `binary` choice in types as well as runtime validation
 - [x] Centralize Cosmos EVM chain ID handling while keeping wrapper defaults explicit
-- [ ] Keep internal execution dependencies out of exported base parameter declarations
+- [x] Keep generic runtime options on custom-chain builders and out of high-level Instance parameters
 - [ ] Expose the Hermes connection and channel mapping created during setup
 - [ ] Stabilize the public API and document the v1 compatibility policy
 

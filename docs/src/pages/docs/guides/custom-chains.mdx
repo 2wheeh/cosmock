@@ -45,6 +45,26 @@ Extra config patches and start flags are available for the odd chain that needs 
 | `extraStartArgs`      | appended to the `start` command         |
 | `extraReadinessCheck` | ANDed with the first-block health check |
 
+## Runtime inputs
+
+Custom chain definitions can attach environment variables and read-only files to every lifecycle command with `runtime`. Environment settings apply to both local binaries and containers; mounts apply only when `image` is used.
+
+```ts
+return cosmosBase({
+  binary,
+  name: 'mychaind',
+  image,
+  runtime: {
+    environment: { MYCHAIN_CONFIG_DIR: image ? '/starskiff/config' : configDirectory },
+    mounts: image
+      ? [{ source: configDirectory, target: '/starskiff/config', readOnly: true }]
+      : undefined,
+  },
+});
+```
+
+Keep chain-specific details on the wrapper interface. For example, accept a `configDirectory` option and translate it into `runtime` internally rather than asking callers for environment-variable names or container paths.
+
 ## EVM chains
 
 For cosmos-evm chains, `cosmosEvmBase` extends the flow with a JSON-RPC port (`evmPort`, patched into app.toml and health-checked on start), `ethermint` relayer hints for Hermes, an `activeStaticPrecompiles` genesis patch, and an optional validated `evmChainId` passed to the node at start:

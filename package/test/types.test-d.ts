@@ -1,7 +1,9 @@
 import {
   Instance,
+  type CosmosBaseParameters,
   type CosmosEvmBaseParameters,
   type CosmosEvmChainParameters,
+  type CosmosRuntimeOptions,
   type MaroodParameters,
   type MaroodPrivacyZkArtifacts,
 } from '../src/index.js'
@@ -33,6 +35,9 @@ expectTypeOf(simdChain.grpcPort).toBeNumber()
 expectTypeOf<CosmosEvmBaseParameters['evmChainId']>().toEqualTypeOf<number | undefined>()
 expectTypeOf<'evmChainId' extends keyof CosmosEvmChainParameters ? true : false>().toEqualTypeOf<false>()
 expectTypeOf<'evmChainId' extends keyof MaroodParameters ? true : false>().toEqualTypeOf<false>()
+expectTypeOf<CosmosBaseParameters['runtime']>().toEqualTypeOf<CosmosRuntimeOptions | undefined>()
+expectTypeOf<CosmosEvmBaseParameters['runtime']>().toEqualTypeOf<CosmosRuntimeOptions | undefined>()
+expectTypeOf<'runtime' extends keyof MaroodParameters ? true : false>().toEqualTypeOf<false>()
 
 const privacyZkArtifacts: MaroodPrivacyZkArtifacts = {
   kind: 'generated-test',
