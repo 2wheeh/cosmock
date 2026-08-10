@@ -58,6 +58,16 @@ const plain = Instance.define(() => ({
 expectTypeOf(plain.host).toBeString()
 expectTypeOf(plain.start).toBeFunction()
 
+const managedFieldsWin = Instance.define(() => ({
+  name: 'managed-fields-win',
+  host: 'localhost',
+  port: 3000,
+  status: 'definition-status' as const,
+  async start() {},
+  async stop() {},
+}))()
+expectTypeOf(managedFieldsWin.status).toEqualTypeOf<Instance.InstanceStatus>()
+
 const optionShapedFactory = Instance.define((parameters?: { timeout?: number }) => ({
   name: 'option-shaped-parameters',
   host: 'localhost',

@@ -89,7 +89,7 @@ export type InstanceFactory<
   ...args: undefined extends P
     ? [parameters?: P, options?: InstanceOptions]
     : [parameters: P, options?: InstanceOptions]
-) => Omit<R, keyof InstanceDefinition> & Instance
+) => Omit<R, keyof Instance> & Instance
 
 /**
  * Creates an instance definition.
@@ -335,6 +335,6 @@ export function define<P = undefined, R extends InstanceDefinition = InstanceDef
         .map((key) => [key, Object.getOwnPropertyDescriptor(raw, key)!]),
     )
 
-    return Object.defineProperties(self, extraDescriptors) as Omit<R, keyof InstanceDefinition> & Instance
+    return Object.defineProperties(self, extraDescriptors) as Omit<R, keyof Instance> & Instance
   }) as InstanceFactory<P, R>
 }
