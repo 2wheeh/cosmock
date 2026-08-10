@@ -1,11 +1,14 @@
 /**
- * Environment and read-only files required by every invocation of a chain
- * binary. The local-process and Docker adapters translate these options into
- * their native invocation format.
+ * Environment and read-only files required by chain commands. Environment
+ * settings apply to both local processes and containers; mounts apply only to
+ * containers.
  */
 export type RuntimeOptions = {
+  /** Explicit values. These take precedence over `unsetEnvironment`. */
   environment?: Readonly<Record<string, string>>
+  /** Variables to remove unless an explicit value is also provided. */
   unsetEnvironment?: readonly string[]
+  /** Read-only host directories mounted only when using a container image. */
   mounts?: readonly {
     source: string
     target: string

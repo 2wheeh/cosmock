@@ -101,12 +101,14 @@ function mountArgs({ homeDir, runtime }: DockerOptions): string[] {
     ]),
     '-e', `HOME=${CONTAINER_HOME}`,
     '-e', `TMPDIR=${CONTAINER_HOME}`,
+    // Docker cannot remove an ENV baked into an image, but overriding it with
+    // an empty value has the same os.Getenv semantics for chain binaries. Put
+    // these first so an explicit environment value wins on overlap, matching
+    // the local-process adapter.
+    ...(runtime?.unsetEnvironment ?? []).flatMap((name) => ['-e', `${name}=`]),
     ...Object.entries(runtime?.environment ?? {}).flatMap(([name, value]) => [
       '-e', `${name}=${value}`,
     ]),
-    // Docker cannot remove an ENV baked into an image, but overriding it with
-    // an empty value has the same os.Getenv semantics for chain binaries.
-    ...(runtime?.unsetEnvironment ?? []).flatMap((name) => ['-e', `${name}=`]),
     '-w', CONTAINER_HOME,
   ]
 }

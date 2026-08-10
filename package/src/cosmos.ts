@@ -8,8 +8,9 @@ import { CONTAINER_HOME } from './docker.js'
 import type { RuntimeOptions } from './runtime.js'
 
 /**
- * Environment and read-only files required by a custom Cosmos chain.
- * Applied to every lifecycle command by both local-process and Docker runtimes.
+ * Runtime inputs required by a custom Cosmos chain. Environment settings
+ * apply to every local and container command; read-only mounts apply only to
+ * container commands.
  */
 export type CosmosRuntimeOptions = RuntimeOptions
 
@@ -186,9 +187,10 @@ export type CosmosBaseParameters = CosmosChainParameters & {
    */
   extraReadinessCheck?: () => Promise<boolean>
   /**
-   * Environment and read-only files applied to every chain CLI invocation.
-   * Intended for custom chain definitions; high-level Instance interfaces
-   * expose domain-specific options instead.
+   * Runtime inputs for every chain CLI invocation. Environment applies to
+   * local and container commands; mounts apply only to containers. Intended
+   * for custom chain definitions; high-level Instance interfaces expose
+   * domain-specific options instead.
    */
   runtime?: CosmosRuntimeOptions
 }
@@ -644,9 +646,10 @@ export type CosmosEvmBaseParameters = CosmosEvmChainParameters & {
   /** Extra `start` command args, forwarded to cosmosBase. */
   extraStartArgs?: string[]
   /**
-   * Environment and read-only files applied to every chain CLI invocation.
-   * Intended for custom chain definitions; high-level Instance interfaces
-   * expose domain-specific options instead.
+   * Runtime inputs for every chain CLI invocation. Environment applies to
+   * local and container commands; mounts apply only to containers. Intended
+   * for custom chain definitions; high-level Instance interfaces expose
+   * domain-specific options instead.
    */
   runtime?: CosmosRuntimeOptions
 }

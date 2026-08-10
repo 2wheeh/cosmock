@@ -159,6 +159,27 @@ const artifactDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'starskiff-zk-te
 afterAll(() => fs.rmSync(artifactDirectory, { recursive: true, force: true }))
 
 describe('marood Privacy ZK artifacts', () => {
+  it('gives explicit environment values precedence in both runtimes', () => {
+    const runtime = {
+      environment: { OVERLAPPING_VALUE: 'explicit' },
+      unsetEnvironment: ['OVERLAPPING_VALUE'],
+    }
+    const environment = applyRuntimeEnvironment(
+      { OVERLAPPING_VALUE: 'parent' },
+      runtime,
+    )
+    expect(environment.OVERLAPPING_VALUE).toBe('explicit')
+
+    const args = runArgs(
+      { image: 'maroo:local', homeDir: '/tmp/chain', runtime },
+      'marood',
+      ['init', 'validator'],
+    )
+    expect(args.lastIndexOf('OVERLAPPING_VALUE=explicit')).toBeGreaterThan(
+      args.lastIndexOf('OVERLAPPING_VALUE='),
+    )
+  })
+
   it('maps generated test artifacts for every Docker invocation', () => {
     const runtime = resolveMaroodPrivacyZkRuntime(
       { kind: 'generated-test', directory: artifactDirectory },
