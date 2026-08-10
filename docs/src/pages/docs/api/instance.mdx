@@ -45,7 +45,8 @@ The call contract is positional and does not inspect object keys: the first argu
 const instance = Instance.simd({ chainId: 'test-1' }, { timeout: 30_000 });
 ```
 
-For a parameterless custom definition, pass `undefined` when supplying options:
+As an uncommon edge case, a parameterless custom definition can still receive
+lifecycle options. Pass `undefined` only to leave the parameter position empty:
 
 ```ts
 const custom = Instance.define(() => ({
