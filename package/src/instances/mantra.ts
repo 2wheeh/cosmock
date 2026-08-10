@@ -87,9 +87,8 @@ export const mantra = Instance.define((parameters?: MantraParameters) => {
   return cosmosEvmBase({
     binary, name: 'mantra', chainId, denom, prefix, validatorBalance, validatorStake, ...rest,
     image,
+    evmChainId,
     activeStaticPrecompiles,
-    // app.toml's compiled-in default is cosmos/evm's 262144; mirror mainnet.
-    extraStartArgs: ['--evm.evm-chain-id', String(evmChainId)],
     patchGenesis: (genesis) => {
       // A fresh `mantrachaind init` writes cosmos/evm module defaults:
       // evm_denom `aatom` and no bank denom metadata. Point the EVM at the

@@ -17,7 +17,7 @@
 
 - [ ] Replace `Instance.define` parameter and option guessing with an explicit v1 contract
 - [ ] Encode the `image` or `binary` choice in types as well as runtime validation
-- [ ] Add an explicit XRPL EVM chain ID override for custom Cosmos chain IDs
+- [x] Centralize Cosmos EVM chain ID handling while keeping wrapper defaults explicit
 - [ ] Keep internal execution dependencies out of exported base parameter declarations
 - [ ] Expose the Hermes connection and channel mapping created during setup
 - [ ] Stabilize the public API and document the v1 compatibility policy

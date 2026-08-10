@@ -7,6 +7,7 @@ import { applyExecutionEnvironment, type ExecutionDependency } from '../src/exec
 import { resolveMaroodPrivacyZkArtifacts } from '../src/instances/marood.js'
 import {
   Instance,
+  cosmosEvmBase,
   SIMD_DEFAULT_IMAGE,
   GAIAD_DEFAULT_IMAGE,
   WASMD_DEFAULT_IMAGE,
@@ -67,6 +68,68 @@ describe('injection-required instances', () => {
   it('marood constructs with an injected source', () => {
     expect(Instance.marood({ binary: 'marood' }).name).toBe('marood')
     expect(Instance.marood({ image: 'my/marood:private' }).name).toBe('marood')
+  })
+})
+
+describe('xrplevm chain identity', () => {
+  it('preserves the mainnet-style Cosmos chain ID inference by default', () => {
+    expect(Instance.xrplevm().evmChainId).toBe(1440000)
+    expect(Instance.xrplevm({ chainId: 'xrplevm_1440002-1' }).evmChainId).toBe(1440002)
+  })
+
+  it('allows the EVM chain ID to be set independently of the Cosmos chain ID', () => {
+    const instance = Instance.xrplevm({
+      chainId: 'custom-xrplevm-local',
+      evmChainId: 1440001,
+    })
+
+    expect(instance.chainId).toBe('custom-xrplevm-local')
+    expect(instance.evmChainId).toBe(1440001)
+  })
+
+  it.each([null as unknown as number, 0, -1, 1.5, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])('rejects invalid evmChainId=%s', (evmChainId) => {
+    expect(() => Instance.xrplevm({ evmChainId })).toThrow(
+      'evmChainId must be a positive safe integer',
+    )
+  })
+})
+
+describe('cosmosEvmBase chain identity', () => {
+  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid evmChainId=%s at the shared interface',
+    (evmChainId) => {
+      expect(() => cosmosEvmBase({
+        binary: 'custom-evmd',
+        name: 'custom-evmd',
+        evmChainId,
+      })).toThrow('evmChainId must be a positive safe integer')
+    },
+  )
+
+  it('applies the shared validation to wrapper-provided values', () => {
+    expect(() => Instance.mantra({ evmChainId: Number.NaN })).toThrow(
+      'evmChainId must be a positive safe integer',
+    )
+  })
+
+  it.each([
+    ['--evm.evm-chain-id', '2'],
+    ['--evm.evm-chain-id=2'],
+  ])('rejects a duplicate raw EVM chain ID flag: %j', (...extraStartArgs) => {
+    expect(() => cosmosEvmBase({
+      binary: 'custom-evmd',
+      name: 'custom-evmd',
+      evmChainId: 1,
+      extraStartArgs,
+    })).toThrow('evmChainId cannot be combined with --evm.evm-chain-id')
+  })
+
+  it('preserves raw flag compatibility when evmChainId is omitted', () => {
+    expect(() => cosmosEvmBase({
+      binary: 'custom-evmd',
+      name: 'custom-evmd',
+      extraStartArgs: ['--evm.evm-chain-id=2'],
+    })).not.toThrow()
   })
 })
 

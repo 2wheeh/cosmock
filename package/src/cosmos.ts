@@ -25,6 +25,8 @@ export type CosmosAccount = {
 /** Default pk proto URL for ethermint-derivation chains (cosmos-evm module). */
 export const DEFAULT_COSMOS_EVM_PK_TYPE_URL = '/cosmos.evm.crypto.v1.ethsecp256k1.PubKey'
 
+const EVM_CHAIN_ID_FLAG = '--evm.evm-chain-id'
+
 /**
  * Hermes relayer hints advertised by an instance. Mirrors the `AddressType`
  * enum in ibc-rs: `cosmos` is a unit variant (secp256k1 only, no custom
@@ -625,6 +627,8 @@ export type CosmosEvmInstance = CosmosInstance & {
 export type CosmosEvmBaseParameters = CosmosEvmChainParameters & {
   binary: string
   name: string
+  /** EIP-155 chain ID passed to the cosmos/evm start command. */
+  evmChainId?: number
   patchGenesis?: (genesis: Genesis) => Genesis
   /** Post-`collect-gentxs` genesis patch, forwarded to cosmosBase. */
   finalizeGenesis?: (genesis: Genesis) => Genesis
@@ -655,9 +659,41 @@ export function normalizeActiveStaticPrecompiles(precompiles: readonly string[])
  * Extends cosmosBase with JSON-RPC (EVM) port configuration in app.toml.
  */
 export function cosmosEvmBase(parameters: CosmosEvmBaseParameters) {
-  const { evmPort = 8545, relayerHints, activeStaticPrecompiles, patchGenesis: userPatch, ...rest } = parameters
+  const {
+    evmChainId,
+    evmPort = 8545,
+    extraStartArgs = [],
+    relayerHints,
+    activeStaticPrecompiles,
+    patchGenesis: userPatch,
+    ...rest
+  } = parameters
+
+  if (
+    evmChainId !== undefined &&
+    (!Number.isSafeInteger(evmChainId) || evmChainId <= 0)
+  ) {
+    throw new Error('evmChainId must be a positive safe integer.')
+  }
+  if (
+    evmChainId !== undefined &&
+    extraStartArgs.some((argument) =>
+      argument === EVM_CHAIN_ID_FLAG || argument.startsWith(`${EVM_CHAIN_ID_FLAG}=`),
+    )
+  ) {
+    throw new Error(
+      `evmChainId cannot be combined with ${EVM_CHAIN_ID_FLAG} in extraStartArgs.`,
+    )
+  }
+
   const base = cosmosBase({
     ...rest,
+    extraStartArgs: [
+      ...(evmChainId === undefined
+        ? []
+        : [EVM_CHAIN_ID_FLAG, String(evmChainId)]),
+      ...extraStartArgs,
+    ],
     // Docker runtime: the JSON-RPC listener needs its port published too.
     extraPorts: [evmPort],
     extraAppToml: {

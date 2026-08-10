@@ -1,4 +1,10 @@
-import { Instance, type MaroodPrivacyZkArtifacts } from '../src/index.js'
+import {
+  Instance,
+  type CosmosEvmBaseParameters,
+  type CosmosEvmChainParameters,
+  type MaroodParameters,
+  type MaroodPrivacyZkArtifacts,
+} from '../src/index.js'
 import { expectTypeOf } from 'vitest'
 
 // CosmosInstance extra fields should be inferred
@@ -19,7 +25,14 @@ expectTypeOf(chain.stop).toBeFunction()
 // simd too
 const simdChain = Instance.simd({ chainId: 'test' })
 expectTypeOf(simdChain.chainId).toBeString()
+
+const xrplevmChain = Instance.xrplevm({ chainId: 'custom-xrplevm', evmChainId: 1440001 })
+expectTypeOf(xrplevmChain.evmChainId).toBeNumber()
 expectTypeOf(simdChain.grpcPort).toBeNumber()
+
+expectTypeOf<CosmosEvmBaseParameters['evmChainId']>().toEqualTypeOf<number | undefined>()
+expectTypeOf<'evmChainId' extends keyof CosmosEvmChainParameters ? true : false>().toEqualTypeOf<false>()
+expectTypeOf<'evmChainId' extends keyof MaroodParameters ? true : false>().toEqualTypeOf<false>()
 
 const privacyZkArtifacts: MaroodPrivacyZkArtifacts = {
   kind: 'generated-test',
