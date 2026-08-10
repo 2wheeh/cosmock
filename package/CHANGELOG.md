@@ -1,5 +1,11 @@
 # starskiff
 
+## 0.6.1
+
+### Patch Changes
+
+- [#12](https://github.com/2wheeh/starskiff/pull/12) [`4b5bb4f`](https://github.com/2wheeh/starskiff/commit/4b5bb4fb060de3587c18b19253682f3bab00dc91) Thanks [@2wheeh](https://github.com/2wheeh)! - Add `privacyZkArtifacts` to `Instance.marood()` so maroo v0.8+ can use generated-test or release Privacy ZK artifacts from a host directory across every Docker and local-binary lifecycle command.
+
 ## 0.6.0
 
 ### Minor Changes
