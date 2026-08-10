@@ -9,46 +9,6 @@
 
 The one built-in exception is the **`hermes` relayer** — not a chain node, it runs as a host binary next to the chains, so CI puts it on `PATH`. Beyond that, provisioning only comes up when a binary is *your* choice: [`marood`](/docs/chains) (private, no default image), or any instance you deliberately run with `binary:` instead of its image. starskiff's own CI uses the image defaults and provisions only `hermes`, via [`config/binaries.json`](https://github.com/2wheeh/starskiff/blob/main/config/binaries.json).
 
-## Provisioning maroo Privacy ZK artifacts
-
-`privacyZkArtifacts.directory` is a directory on the CI runner, not a download
-URL. Keep a release bundle in an artifact registry or private GitHub Release,
-then download, verify, and extract it before the test step. Avoid committing a
-release bundle to the application repository unless it is intentionally a
-small test fixture.
-
-```yaml
-- name: Download maroo Privacy ZK bundle
-  env:
-    GH_TOKEN: ${{ github.token }}
-    MAROO_ZK_SHA256: ${{ vars.MAROO_ZK_SHA256 }}
-  run: |
-    gh release download v0.8.0 --repo your-org/maroo-artifacts \
-      --pattern 'privacy-zk-v0.8.0.tar.gz' --dir /tmp
-    echo "${MAROO_ZK_SHA256}  /tmp/privacy-zk-v0.8.0.tar.gz" | sha256sum --check --strict
-    mkdir -p /tmp/maroo-privacy-zk
-    tar -xzf /tmp/privacy-zk-v0.8.0.tar.gz -C /tmp/maroo-privacy-zk
-
-- name: Test
-  env:
-    MAROO_PRIVACY_ZK_DIR: /tmp/maroo-privacy-zk
-  run: pnpm test
-```
-
-```ts
-const maroo = Instance.marood({
-  image: 'your-registry/marood:v0.8.0',
-  privacyZkArtifacts: {
-    kind: 'release',
-    directory: process.env.MAROO_PRIVACY_ZK_DIR!,
-  },
-});
-```
-
-For `generated-test`, run maroo's upstream generator in a prior CI step and
-pass its output directory with `kind: 'generated-test'`. Starskiff deliberately
-does not generate, download, or approve either bundle kind.
-
 ## Provisioning a binary
 
 When you do need one, prefer prebuilt binaries over building from source: a chain binary is a large Go program, and compiling one per CI run spends the startup advantage that makes starskiff worth using. Build (or download) each binary **once**, store it where CI can fetch it, and every run afterwards pays only a seconds-long download.
