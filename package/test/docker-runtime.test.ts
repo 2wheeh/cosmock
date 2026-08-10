@@ -7,6 +7,7 @@ import { applyExecutionEnvironment, type ExecutionDependency } from '../src/exec
 import { resolveMaroodPrivacyZkArtifacts } from '../src/instances/marood.js'
 import {
   Instance,
+  cosmosEvmBase,
   SIMD_DEFAULT_IMAGE,
   GAIAD_DEFAULT_IMAGE,
   WASMD_DEFAULT_IMAGE,
@@ -88,6 +89,25 @@ describe('xrplevm chain identity', () => {
 
   it.each([0, -1, 1.5, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])('rejects invalid evmChainId=%s', (evmChainId) => {
     expect(() => Instance.xrplevm({ evmChainId })).toThrow(
+      'evmChainId must be a positive safe integer',
+    )
+  })
+})
+
+describe('cosmosEvmBase chain identity', () => {
+  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid evmChainId=%s at the shared interface',
+    (evmChainId) => {
+      expect(() => cosmosEvmBase({
+        binary: 'custom-evmd',
+        name: 'custom-evmd',
+        evmChainId,
+      })).toThrow('evmChainId must be a positive safe integer')
+    },
+  )
+
+  it('applies the shared validation to wrapper-provided values', () => {
+    expect(() => Instance.mantra({ evmChainId: Number.NaN })).toThrow(
       'evmChainId must be a positive safe integer',
     )
   })

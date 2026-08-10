@@ -423,10 +423,10 @@ export const marood = Instance.define((parameters?: MaroodParameters) => {
     binary, name: 'marood', chainId, denom, prefix, validatorBalance, validatorStake,
     minimumGasPrices, ...rest,
     image,
-    activeStaticPrecompiles,
     // app.toml's compiled-in default is the mainnet EVM chain id; make the
     // preset authoritative for both networks.
-    extraStartArgs: ['--evm.evm-chain-id', String(preset.evmChainId)],
+    evmChainId: preset.evmChainId,
+    activeStaticPrecompiles,
     [executionDependency]: privacyZkDependency,
     patchGenesis: (genesis) =>
       patchMaroodGenesis(genesis, { preset, preinstalls, policyAdmin, minterAddress, entrypoints, patchGenesis: userPatch }),

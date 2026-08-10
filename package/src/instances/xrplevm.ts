@@ -86,9 +86,6 @@ export const xrplevm = Instance.define((parameters?: XrplevmParameters) => {
   // wins; otherwise preserve the mainnet-style Cosmos ID inference and fall
   // back to XRPL EVM mainnet's 1440000.
   const evmChainId = requestedEvmChainId ?? Number((chainId.match(/_(\d+)-/) ?? [])[1] ?? 1440000)
-  if (!Number.isSafeInteger(evmChainId) || evmChainId <= 0) {
-    throw new Error('evmChainId must be a positive safe integer.')
-  }
 
   // Preserve the three-state semantics of `activeStaticPrecompiles`:
   // omitted → xrplevm mainnet set; explicit `undefined` → pass through (binary
@@ -99,8 +96,8 @@ export const xrplevm = Instance.define((parameters?: XrplevmParameters) => {
   const base = cosmosEvmBase({
     binary, name: 'xrplevm', chainId, denom, prefix, validatorBalance, validatorStake, ...rest,
     image,
+    evmChainId,
     activeStaticPrecompiles,
-    extraStartArgs: ['--evm.evm-chain-id', String(evmChainId)],
     // exrpd's newApp reads the genesis through CometBFT's GenesisDoc parser,
     // which requires int64 fields to be STRING-encoded — but the SDK writes
     // `initial_height` as a JSON number (and re-writes it on every genesis

@@ -47,7 +47,7 @@ Extra config patches and start flags are available for the odd chain that needs 
 
 ## EVM chains
 
-For cosmos-evm chains, `cosmosEvmBase` extends the flow with a JSON-RPC port (`evmPort`, patched into app.toml and health-checked on start), `ethermint` relayer hints for Hermes, and an `activeStaticPrecompiles` genesis patch:
+For cosmos-evm chains, `cosmosEvmBase` extends the flow with a JSON-RPC port (`evmPort`, patched into app.toml and health-checked on start), `ethermint` relayer hints for Hermes, an `activeStaticPrecompiles` genesis patch, and an optional validated `evmChainId` passed to the node at start:
 
 ```ts
 import { Instance, cosmosEvmBase, type CosmosEvmChainParameters } from 'starskiff';
@@ -56,6 +56,7 @@ export const myevmd = Instance.define((parameters?: CosmosEvmChainParameters) =>
   return cosmosEvmBase({
     binary: 'myevmd',
     name: 'myevmd',
+    evmChainId: 12345,
     denom: 'atoken', // 18 decimals → bump validator amounts:
     validatorBalance: '100000000000000000000000', // 1e23
     validatorStake: '10000000000000000000000', // 1e22

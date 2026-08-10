@@ -625,6 +625,8 @@ export type CosmosEvmInstance = CosmosInstance & {
 export type CosmosEvmBaseParameters = CosmosEvmChainParameters & {
   binary: string
   name: string
+  /** EIP-155 chain ID passed to the cosmos/evm start command. */
+  evmChainId?: number
   patchGenesis?: (genesis: Genesis) => Genesis
   /** Post-`collect-gentxs` genesis patch, forwarded to cosmosBase. */
   finalizeGenesis?: (genesis: Genesis) => Genesis
@@ -655,9 +657,31 @@ export function normalizeActiveStaticPrecompiles(precompiles: readonly string[])
  * Extends cosmosBase with JSON-RPC (EVM) port configuration in app.toml.
  */
 export function cosmosEvmBase(parameters: CosmosEvmBaseParameters) {
-  const { evmPort = 8545, relayerHints, activeStaticPrecompiles, patchGenesis: userPatch, ...rest } = parameters
+  const {
+    evmChainId,
+    evmPort = 8545,
+    extraStartArgs = [],
+    relayerHints,
+    activeStaticPrecompiles,
+    patchGenesis: userPatch,
+    ...rest
+  } = parameters
+
+  if (
+    evmChainId !== undefined &&
+    (!Number.isSafeInteger(evmChainId) || evmChainId <= 0)
+  ) {
+    throw new Error('evmChainId must be a positive safe integer.')
+  }
+
   const base = cosmosBase({
     ...rest,
+    extraStartArgs: [
+      ...(evmChainId === undefined
+        ? []
+        : ['--evm.evm-chain-id', String(evmChainId)]),
+      ...extraStartArgs,
+    ],
     // Docker runtime: the JSON-RPC listener needs its port published too.
     extraPorts: [evmPort],
     extraAppToml: {

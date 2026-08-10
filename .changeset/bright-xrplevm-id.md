@@ -2,4 +2,4 @@
 'starskiff': patch
 ---
 
-Allow XRPL EVM instances to set and expose `evmChainId` independently of their Cosmos `chainId`.
+Allow custom Cosmos EVM definitions to configure a validated `evmChainId`, and let XRPL EVM instances set and expose it independently of their Cosmos `chainId`.
