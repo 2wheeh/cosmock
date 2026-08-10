@@ -330,14 +330,9 @@ Recommended: fund multiple accounts in genesis, assign each test its own account
 | State reset  | Helm redeploy (minutes)    | kill + restart (~3s) |
 | Best for     | Production simulation      | Dev/test             |
 
-## TODO
+## Roadmap
 
-- [ ] `starskiff.config.ts` — config-based chain + relayer declaration
-- [ ] `starskiff/vitest` — vitest plugin (automatic setup/teardown via `vitestPlugin(config)`)
-- [ ] `starskiff/playwright` — playwright plugin (`playwrightPlugin(config)`)
-- [ ] `starskiff/setup-binaries` GitHub Action for CI binary setup
-
-Shipped: `cosmosEvmBase` (EVM JSON-RPC instances), `findFreePorts()` (port allocation), the container runtime (`image` parameter).
+See the [roadmap to v1.0](https://github.com/2wheeh/starskiff/blob/main/ROADMAP.md) for planned API, runtime, artifact, and integration work.
 
 ## License
 
