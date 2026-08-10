@@ -1,6 +1,9 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import * as Instance from '../Instance.js'
 import { cosmosEvmBase, type CosmosEvmChainParameters, type Genesis } from '../cosmos.js'
 import { resolveInstanceImage } from '../docker.js'
+import { executionDependency, type ExecutionDependency } from '../execution.js'
 import { MAROO_PREINSTALLS, type EvmPreinstall } from './marood-preinstalls.js'
 
 export type { EvmPreinstall }
@@ -105,6 +108,18 @@ export const MAROO_DEFAULT_PCL_ENTRYPOINTS: readonly string[] = [
   'maroo1gvmssnv7y40lqupyv88c39wwnca4luggmf5lq0',
 ]
 
+export type MaroodPrivacyZkArtifacts =
+  | {
+      kind: 'generated-test'
+      /** Absolute host path containing generated, non-production test artifacts. */
+      directory: string
+    }
+  | {
+      kind: 'release'
+      /** Absolute host path containing an approved release artifact bundle. */
+      directory: string
+    }
+
 export type MaroodParameters = CosmosEvmChainParameters & {
   /**
    * Run from a local `marood` binary on `PATH`.
@@ -114,6 +129,14 @@ export type MaroodParameters = CosmosEvmChainParameters & {
    * assumed to be named `marood`.)
    */
   binary?: string
+  /**
+   * External Privacy ZK artifacts required by maroo v0.8+.
+   *
+   * Omit this for a self-contained image whose artifacts and environment are
+   * already configured. Starskiff validates only the host path; marood's
+   * strict preflight remains the authority for artifact contents.
+   */
+  privacyZkArtifacts?: MaroodPrivacyZkArtifacts
   /**
    * Network preset selecting chain ids and denoms. @default "testnet"
    *
@@ -144,6 +167,63 @@ export type MaroodParameters = CosmosEvmChainParameters & {
   entrypoints?: readonly string[]
   /** Chain-specific genesis patch, chained after marood's defaults. */
   patchGenesis?: (genesis: Genesis) => Genesis
+}
+
+const PRIVACY_ZK_CONTAINER_DIRECTORY = '/starskiff/privacy-zk-artifacts'
+const PRIVACY_ZK_ARTIFACT_DIR_ENV = 'CLAIRVEIL_PRIVACY_ZK_ARTIFACT_DIR'
+const PRIVACY_ZK_PREFLIGHT_MODE_ENV = 'CLAIRVEIL_PRIVACY_ZK_PREFLIGHT_MODE'
+const PRIVACY_ZK_RUNTIME_ENVIRONMENT_ENV = 'CLAIRVEIL_PRIVACY_ZK_RUNTIME_ENVIRONMENT'
+const TEST_PRIVACY_RELEASE_ENV = 'MAROO_TEST_PRIVACY_RELEASE_FROM_ARTIFACTS'
+
+/** @internal Translates the marood-specific option into the generic execution seam. */
+export function resolveMaroodPrivacyZkArtifacts(
+  artifacts: MaroodPrivacyZkArtifacts | undefined,
+  containerRuntime: boolean,
+): ExecutionDependency | undefined {
+  if (!artifacts) return undefined
+
+  if (artifacts.kind !== 'generated-test' && artifacts.kind !== 'release') {
+    throw new Error(
+      'marood: privacyZkArtifacts.kind must be "generated-test" or "release".',
+    )
+  }
+  if (typeof artifacts.directory !== 'string' || !path.isAbsolute(artifacts.directory)) {
+    throw new Error('marood: privacyZkArtifacts.directory must be an absolute host path.')
+  }
+
+  let isDirectory = false
+  try {
+    isDirectory = fs.statSync(artifacts.directory).isDirectory()
+  } catch {
+    // Use the same actionable error for missing and unreadable paths.
+  }
+  if (!isDirectory) {
+    throw new Error(
+      `marood: privacyZkArtifacts.directory is not an existing directory: ${artifacts.directory}`,
+    )
+  }
+
+  const artifactDirectory = containerRuntime
+    ? PRIVACY_ZK_CONTAINER_DIRECTORY
+    : artifacts.directory
+  const environment: Record<string, string> = {
+    [PRIVACY_ZK_ARTIFACT_DIR_ENV]: artifactDirectory,
+    [PRIVACY_ZK_PREFLIGHT_MODE_ENV]: 'strict',
+  }
+
+  if (artifacts.kind === 'generated-test') {
+    environment[TEST_PRIVACY_RELEASE_ENV] = '1'
+  } else {
+    environment[PRIVACY_ZK_RUNTIME_ENVIRONMENT_ENV] = 'production'
+  }
+
+  return {
+    environment,
+    unsetEnvironment: artifacts.kind === 'release' ? [TEST_PRIVACY_RELEASE_ENV] : undefined,
+    mounts: containerRuntime
+      ? [{ source: artifacts.directory, target: PRIVACY_ZK_CONTAINER_DIRECTORY, readOnly: true }]
+      : undefined,
+  }
 }
 
 /** Options for {@link patchMaroodGenesis}, mirroring the relevant `MaroodParameters`. */
@@ -325,12 +405,14 @@ export const marood = Instance.define((parameters?: MaroodParameters) => {
     policyAdmin,
     minterAddress,
     entrypoints,
+    privacyZkArtifacts,
     patchGenesis: userPatch,
     ...rest
   } = params
 
   // No default image (private node source): image or binary required.
   const image = resolveInstanceImage('marood', params)
+  const privacyZkDependency = resolveMaroodPrivacyZkArtifacts(privacyZkArtifacts, Boolean(image))
 
   // Same three-state semantics as evmd: omitted → maroo default set; explicit
   // `undefined` → binary default (empty); `[]` / `[...]` → as given.
@@ -345,6 +427,7 @@ export const marood = Instance.define((parameters?: MaroodParameters) => {
     // app.toml's compiled-in default is the mainnet EVM chain id; make the
     // preset authoritative for both networks.
     extraStartArgs: ['--evm.evm-chain-id', String(preset.evmChainId)],
+    [executionDependency]: privacyZkDependency,
     patchGenesis: (genesis) =>
       patchMaroodGenesis(genesis, { preset, preinstalls, policyAdmin, minterAddress, entrypoints, patchGenesis: userPatch }),
   })

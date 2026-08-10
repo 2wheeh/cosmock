@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest'
-import { resolveInstanceImage } from '../src/docker.js'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { afterAll, describe, it, expect } from 'vitest'
+import { resolveInstanceImage, runArgs, startArgs } from '../src/docker.js'
+import { applyExecutionEnvironment, type ExecutionDependency } from '../src/execution.js'
+import { resolveMaroodPrivacyZkArtifacts } from '../src/instances/marood.js'
 import {
   Instance,
   SIMD_DEFAULT_IMAGE,
@@ -84,5 +89,99 @@ describe('container-first default images', () => {
 
   it('evmd pins the image starskiff publishes', () => {
     expect(EVMD_DEFAULT_IMAGE).toMatch(/^ghcr\.io\/2wheeh\/starskiff\/evmd[:@]/)
+  })
+})
+
+const artifactDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'starskiff-zk-test-'))
+afterAll(() => fs.rmSync(artifactDirectory, { recursive: true, force: true }))
+
+describe('marood Privacy ZK artifacts', () => {
+  it('maps generated test artifacts for every Docker invocation', () => {
+    const dependency = resolveMaroodPrivacyZkArtifacts(
+      { kind: 'generated-test', directory: artifactDirectory },
+      true,
+    )
+
+    expect(dependency).toEqual({
+      environment: {
+        CLAIRVEIL_PRIVACY_ZK_ARTIFACT_DIR: '/starskiff/privacy-zk-artifacts',
+        CLAIRVEIL_PRIVACY_ZK_PREFLIGHT_MODE: 'strict',
+        MAROO_TEST_PRIVACY_RELEASE_FROM_ARTIFACTS: '1',
+      },
+      unsetEnvironment: undefined,
+      mounts: [{
+        source: artifactDirectory,
+        target: '/starskiff/privacy-zk-artifacts',
+        readOnly: true,
+      }],
+    })
+
+    const options = { image: 'maroo:local', homeDir: '/tmp/chain', executionDependency: dependency }
+    for (const args of [
+      runArgs(options, 'marood', ['init', 'validator']),
+      startArgs(options, 'marood', ['start'], { name: 'marood-test', ports: [] }),
+    ]) {
+      expect(args).toContain(`${artifactDirectory}:/starskiff/privacy-zk-artifacts:ro`)
+      expect(args).toContain('CLAIRVEIL_PRIVACY_ZK_ARTIFACT_DIR=/starskiff/privacy-zk-artifacts')
+      expect(args).toContain('CLAIRVEIL_PRIVACY_ZK_PREFLIGHT_MODE=strict')
+      expect(args).toContain('MAROO_TEST_PRIVACY_RELEASE_FROM_ARTIFACTS=1')
+    }
+  })
+
+  it('maps release artifacts to a local binary and removes a leaked test override', () => {
+    const dependency = resolveMaroodPrivacyZkArtifacts(
+      { kind: 'release', directory: artifactDirectory },
+      false,
+    )
+
+    expect(dependency).toEqual({
+      environment: {
+        CLAIRVEIL_PRIVACY_ZK_ARTIFACT_DIR: artifactDirectory,
+        CLAIRVEIL_PRIVACY_ZK_PREFLIGHT_MODE: 'strict',
+        CLAIRVEIL_PRIVACY_ZK_RUNTIME_ENVIRONMENT: 'production',
+      },
+      unsetEnvironment: ['MAROO_TEST_PRIVACY_RELEASE_FROM_ARTIFACTS'],
+      mounts: undefined,
+    })
+
+    const environment = applyExecutionEnvironment({
+      KEEP_ME: 'yes',
+      MAROO_TEST_PRIVACY_RELEASE_FROM_ARTIFACTS: '1',
+    }, dependency)
+    expect(environment.KEEP_ME).toBe('yes')
+    expect(environment.MAROO_TEST_PRIVACY_RELEASE_FROM_ARTIFACTS).toBeUndefined()
+    expect(environment.CLAIRVEIL_PRIVACY_ZK_ARTIFACT_DIR).toBe(artifactDirectory)
+  })
+
+  it('overrides a test opt-in baked into a release image with an empty value', () => {
+    const dependency = resolveMaroodPrivacyZkArtifacts(
+      { kind: 'release', directory: artifactDirectory },
+      true,
+    ) as ExecutionDependency
+    const args = runArgs(
+      { image: 'maroo:v0.8.0', homeDir: '/tmp/chain', executionDependency: dependency },
+      'marood',
+      ['init', 'validator'],
+    )
+
+    expect(args).toContain('MAROO_TEST_PRIVACY_RELEASE_FROM_ARTIFACTS=')
+    expect(args).toContain('CLAIRVEIL_PRIVACY_ZK_RUNTIME_ENVIRONMENT=production')
+  })
+
+  it('validates only that the host input is an absolute existing directory', () => {
+    expect(() => Instance.marood({
+      image: 'maroo:local',
+      privacyZkArtifacts: { kind: 'generated-test', directory: 'relative/artifacts' },
+    })).toThrow(/absolute host path/)
+
+    expect(() => Instance.marood({
+      binary: 'marood',
+      privacyZkArtifacts: { kind: 'release', directory: path.join(artifactDirectory, 'missing') },
+    })).toThrow(/not an existing directory/)
+
+    expect(() => Instance.marood({
+      image: 'maroo:local',
+      privacyZkArtifacts: { kind: 'generated-test', directory: artifactDirectory },
+    })).not.toThrow()
   })
 })
