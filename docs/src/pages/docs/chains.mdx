@@ -14,6 +14,34 @@ Instance.gaiad(); // official image out of the box
 Instance.marood({ binary: 'marood', network: 'testnet' }); // no default image — injection required
 ```
 
+maroo v0.8+ needs Privacy ZK artifacts during genesis as well as startup. Pass
+an absolute host directory and starskiff supplies it to every lifecycle command:
+
+```ts
+Instance.marood({
+  image: 'maroo:local',
+  privacyZkArtifacts: {
+    kind: 'generated-test',
+    directory: '/absolute/path/to/privacy-zk-test-artifacts',
+  },
+});
+
+Instance.marood({
+  image: 'maroo:v0.8.0',
+  privacyZkArtifacts: {
+    kind: 'release',
+    directory: '/srv/maroo/privacy-zk/v0.8.0',
+  },
+});
+```
+
+`generated-test` selects maroo's test-only circuit identity and therefore
+requires a `test`-tag build. `release` forces production/strict mode and clears
+that test opt-in. Docker gets a read-only mount; a local `binary` receives the
+host path directly. Starskiff only validates the path shape and existence—maroo
+remains responsible for strict artifact validation. Omit `privacyZkArtifacts`
+for a self-contained image that already carries the artifacts and environment.
+
 `policyAdmin` and `minterAddress` are unset by default — pass them to claim the PCL precompile's admin methods and the OKRW `mint`/`burn` paths:
 
 ```ts

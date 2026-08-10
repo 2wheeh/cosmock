@@ -334,6 +334,32 @@ describe('Instance', () => {
 });
 
 describe('createProcess', () => {
+  it('passes the supplied environment to the managed child process', async () => {
+    const proc = createProcess('environment-handoff');
+    const emitter = mitt<EventTypes>();
+    let stdout = '';
+    const exited = new Promise<void>(resolve => {
+      emitter.on('stdout', message => { stdout += message; });
+      emitter.on('exit', () => { resolve(); });
+    });
+
+    await proc.start(
+      process.execPath,
+      ['-e', 'process.stdout.write(process.env.STARSKIFF_PROCESS_ENV_TEST ?? "missing")'],
+      {
+        emitter,
+        environment: {
+          ...process.env,
+          STARSKIFF_PROCESS_ENV_TEST: 'forwarded',
+        },
+        resolver({ resolve }) { resolve(); },
+      },
+    );
+    await exited;
+
+    expect(stdout).toBe('forwarded');
+  });
+
   it('rejects with a clear error when the binary is missing, instead of hanging', async () => {
     const proc = createProcess('missing-binary');
     const emitter = mitt<EventTypes>();

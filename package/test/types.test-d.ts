@@ -1,4 +1,4 @@
-import { Instance } from '../src/index.js'
+import { Instance, type MaroodPrivacyZkArtifacts } from '../src/index.js'
 import { expectTypeOf } from 'vitest'
 
 // CosmosInstance extra fields should be inferred
@@ -20,6 +20,13 @@ expectTypeOf(chain.stop).toBeFunction()
 const simdChain = Instance.simd({ chainId: 'test' })
 expectTypeOf(simdChain.chainId).toBeString()
 expectTypeOf(simdChain.grpcPort).toBeNumber()
+
+const privacyZkArtifacts: MaroodPrivacyZkArtifacts = {
+  kind: 'generated-test',
+  directory: '/tmp/maroo-privacy-zk-test-artifacts',
+}
+const maroodChain = Instance.marood({ image: 'maroo:local', privacyZkArtifacts })
+expectTypeOf(maroodChain.evmUrl).toBeString()
 
 // Plain define without extras — no extra fields
 const plain = Instance.define(() => ({

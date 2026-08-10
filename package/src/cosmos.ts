@@ -14,6 +14,11 @@ import {
   runArgs as dockerRunArgs,
   startArgs as dockerStartArgs,
 } from './docker.js'
+import {
+  applyExecutionEnvironment,
+  executionDependency,
+  type ExecutionDependency,
+} from './execution.js'
 
 export type CosmosAccount = {
   /** BIP39 mnemonic for key derivation. */
@@ -185,6 +190,8 @@ export type CosmosBaseParameters = CosmosChainParameters & {
    * JSON-RPC (EVM) endpoint to come up.
    */
   extraReadinessCheck?: () => Promise<boolean>
+  /** @internal Chain wrappers translate domain options into this dependency. */
+  [executionDependency]?: ExecutionDependency
 }
 
 /**
@@ -223,6 +230,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
     extraReadinessCheck,
     relayerHints,
     image,
+    [executionDependency]: dependency,
   } = parameters
 
   const process = createProcess(name)
@@ -283,19 +291,26 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
           await ensureImage(image, (message) => emitter.emit('message', message))
         }
 
+        const childEnvironment = applyExecutionEnvironment(globalThis.process.env, dependency)
+        const dockerOptions = (commandHome: string) => ({
+          image: image!,
+          homeDir: commandHome,
+          executionDependency: dependency,
+        })
+
         // Both runtimes execute the same chain CLI against the same home dir —
         // docker just runs it inside a disposable container with that dir bind
         // mounted, so every step below (and the host-side genesis/config
         // patching) is runtime-agnostic.
         const run = (args: string[]) =>
           image
-            ? x('docker', dockerRunArgs({ image, homeDir: homeDir! }, binary, args), {
+            ? x('docker', dockerRunArgs(dockerOptions(homeDir!), binary, args), {
                 throwOnError: true,
-                nodeOptions: { stdio: 'pipe' },
+                nodeOptions: { stdio: 'pipe', env: childEnvironment },
               })
             : x(binary, [...args, '--home', homeDir!], {
                 throwOnError: true,
-                nodeOptions: { stdio: 'pipe' },
+                nodeOptions: { stdio: 'pipe', env: childEnvironment },
               })
 
         // 1. Init chain
@@ -326,12 +341,13 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
           // (docker gets `-i` to keep the pipe open into the container).
           const recoverArgs = ['keys', 'add', keyName, '--recover', '--keyring-backend', 'test']
           const [recoverCmd, recoverArgv] = image
-            ? ['docker', dockerRunArgs({ image, homeDir: homeDir! }, binary, recoverArgs, { interactive: true })] as const
+            ? ['docker', dockerRunArgs(dockerOptions(homeDir!), binary, recoverArgs, { interactive: true })] as const
             : [binary, [...recoverArgs, '--home', homeDir!]] as const
 
           const result = spawnSync(recoverCmd, recoverArgv as string[], {
             input: account.mnemonic + '\n',
             stdio: ['pipe', 'pipe', 'pipe'],
+            env: childEnvironment,
           })
 
           if (result.status !== 0) {
@@ -367,13 +383,13 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
           // needs its own bind mount rather than the instance's.
           const runInConsHome = (args: string[]) =>
             image
-              ? x('docker', dockerRunArgs({ image, homeDir: consHome }, binary, args), {
+              ? x('docker', dockerRunArgs(dockerOptions(consHome), binary, args), {
                   throwOnError: true,
-                  nodeOptions: { stdio: 'pipe' },
+                  nodeOptions: { stdio: 'pipe', env: childEnvironment },
                 })
               : x(binary, [...args, '--home', consHome], {
                   throwOnError: true,
-                  nodeOptions: { stdio: 'pipe' },
+                  nodeOptions: { stdio: 'pipe', env: childEnvironment },
                 })
           try {
             await runInConsHome(['init', valName, '--chain-id', chainId])
@@ -437,7 +453,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
         const [startCmd, startArgv] = image
           ? [
               'docker',
-              dockerStartArgs({ image, homeDir }, binary, startCliArgs, {
+              dockerStartArgs(dockerOptions(homeDir), binary, startCliArgs, {
                 name: containerName,
                 ports: [port, p2pPort, apiPort, grpcPort, grpcWebPort, ...(extraPorts ?? [])],
               }),
@@ -446,6 +462,7 @@ export function cosmosBase(parameters: CosmosBaseParameters) {
 
         return await process.start(startCmd, startArgv as string[], {
           emitter,
+          environment: childEnvironment,
           resolver({ process: proc, resolve, reject }) {
             const rpcUrl = `http://localhost:${port}`
 
@@ -636,6 +653,8 @@ export type CosmosEvmBaseParameters = CosmosEvmChainParameters & {
   extraConfigToml?: Record<string, string>
   /** Extra `start` command args, forwarded to cosmosBase. */
   extraStartArgs?: string[]
+  /** @internal Chain wrappers translate domain options into this dependency. */
+  [executionDependency]?: ExecutionDependency
 }
 
 /**

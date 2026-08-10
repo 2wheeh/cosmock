@@ -1,4 +1,5 @@
 import { x } from 'tinyexec'
+import type { ExecutionDependency } from './execution.js'
 
 /**
  * Home directory *inside* the container. The host's temp home dir is bind
@@ -65,6 +66,8 @@ export type DockerOptions = {
   image: string
   /** Host directory bind mounted at {@link CONTAINER_HOME}. */
   homeDir: string
+  /** Internal files and environment shared by every chain CLI invocation. */
+  executionDependency?: ExecutionDependency
 }
 
 /**
@@ -80,7 +83,7 @@ function userArgs(): string[] {
   return ['--user', `${process.getuid?.()}:${process.getgid?.()}`]
 }
 
-function mountArgs({ homeDir }: DockerOptions): string[] {
+function mountArgs({ homeDir, executionDependency }: DockerOptions): string[] {
   // -w pins the working dir to the mounted home. Some chain binaries (e.g. evmd)
   // instantiate the app at command-construction time and create a `data/` dir
   // relative to CWD *before* reading --home; if CWD is the image's default
@@ -93,8 +96,17 @@ function mountArgs({ homeDir }: DockerOptions): string[] {
   // guaranteed-writable, and they're deleted with the home dir on stop().
   return [
     '-v', `${homeDir}:${CONTAINER_HOME}`,
+    ...(executionDependency?.mounts ?? []).flatMap(({ source, target, readOnly }) => [
+      '-v', `${source}:${target}${readOnly ? ':ro' : ''}`,
+    ]),
     '-e', `HOME=${CONTAINER_HOME}`,
     '-e', `TMPDIR=${CONTAINER_HOME}`,
+    ...Object.entries(executionDependency?.environment ?? {}).flatMap(([name, value]) => [
+      '-e', `${name}=${value}`,
+    ]),
+    // Docker cannot remove an ENV baked into an image, but overriding it with
+    // an empty value has the same os.Getenv semantics for chain binaries.
+    ...(executionDependency?.unsetEnvironment ?? []).flatMap((name) => ['-e', `${name}=`]),
     '-w', CONTAINER_HOME,
   ]
 }

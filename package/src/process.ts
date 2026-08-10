@@ -20,6 +20,8 @@ export type ProcessResolverOptions = {
 
 export type ProcessStartOptions = {
   emitter: Emitter<EventTypes>;
+  /** Environment for the managed child process. */
+  environment?: NodeJS.ProcessEnv;
   resolver(options: ProcessResolverOptions): void;
 };
 
@@ -73,11 +75,11 @@ export function createProcess(name: string, options: ProcessOptions = {}): Proce
   const errorMessages: string[] = [];
 
   return {
-    start(command, args, { emitter, resolver }) {
+    start(command, args, { emitter, environment, resolver }) {
       const { promise, resolve, reject } = Promise.withResolvers<void>();
 
       child = exec(command, args, {
-        nodeOptions: { stdio: 'pipe' },
+        nodeOptions: { stdio: 'pipe', env: environment },
       });
 
       const proc = child.process!;
