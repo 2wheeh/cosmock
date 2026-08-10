@@ -105,6 +105,7 @@ export type InstanceFactory<
  *   name: 'simd',
  *   host: 'localhost',
  *   port: 26657,
+ *   chainId: params?.chainId ?? 'test-1',
  *   async start(opts, ctx) { ... },
  *   async stop(ctx) { ... },
  * }))
