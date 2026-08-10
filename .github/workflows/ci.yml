@@ -108,7 +108,7 @@ jobs:
 
       # Feature project tests whose deps exist on CI: the *-docker suites pull
       # public images (xplad/mantra official, xrplevm amd64-only — fine on
-      # amd64 runners, evmd the digest-pinned image starskiff publishes), and
+      # amd64 runners, evmd the configured image starskiff publishes), and
       # extra-validators uses the simd image. marood (private binary) stays
       # excluded.
       - name: Feature tests (container runtime + multi-validator)

@@ -26,7 +26,7 @@
 
 - [x] Publish the multi-arch evmd image and pin its manifest digest
 - [x] Use official images for Gaia, XPLA, MANTRA, and XRPL EVM
-- [ ] Upgrade evmd to cosmos/evm v0.7.1, publish it, and pin the new manifest digest
+- [ ] Publish the prepared cosmos/evm v0.7.1 evmd image and pin its manifest digest
 - [ ] Replace the floating simd minor tag with an explicit artifact policy
 - [ ] Add a default marood image if upstream publishes a distributable image
 - [ ] Remove or redefine the unused `binaries/latest` publishing lane

@@ -13,6 +13,7 @@ const manifest = JSON.parse(
     name: string
     repo: string
     ref: string
+    commit: string
     image: string
     digest: string | null
     platforms: string[]
@@ -22,7 +23,7 @@ const manifest = JSON.parse(
 const byName = Object.fromEntries(manifest.images.map((i) => [i.name, i]))
 
 describe('config/images.json ↔ instance defaults', () => {
-  it('pins EVMD_DEFAULT_IMAGE to the published evmd image (single source of truth)', () => {
+  it('pins EVMD_DEFAULT_IMAGE to the configured evmd image (single source of truth)', () => {
     const evmd = byName['evmd']
     expect(evmd, 'evmd must have a manifest entry').toBeTruthy()
 
@@ -38,6 +39,12 @@ describe('config/images.json ↔ instance defaults', () => {
       expect(img.platforms, `${img.name} platforms`).toEqual(
         expect.arrayContaining(['linux/amd64', 'linux/arm64']),
       )
+    }
+  })
+
+  it('pins every upstream source ref to a full commit SHA', () => {
+    for (const img of manifest.images) {
+      expect(img.commit, `${img.name} source commit`).toMatch(/^[0-9a-f]{40}$/)
     }
   })
 
