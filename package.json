@@ -16,7 +16,7 @@
     "test:unit": "pnpm --filter starskiff test:unit",
     "test:integration": "pnpm --filter starskiff test:integration",
     "docs:dev": "pnpm --filter docs dev",
-    "docs:build": "pnpm --filter docs build",
+    "docs:build": "pnpm build && pnpm --filter docs build",
     "docs:preview": "pnpm --filter docs preview",
     "release": "pnpm build && changeset publish"
   },
