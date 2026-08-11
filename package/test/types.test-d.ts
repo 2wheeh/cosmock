@@ -57,3 +57,44 @@ const plain = Instance.define(() => ({
 
 expectTypeOf(plain.host).toBeString()
 expectTypeOf(plain.start).toBeFunction()
+
+const managedFieldsWin = Instance.define(() => ({
+  name: 'managed-fields-win',
+  host: 'localhost',
+  port: 3000,
+  status: 'definition-status' as const,
+  async start() {},
+  async stop() {},
+}))()
+expectTypeOf(managedFieldsWin.status).toEqualTypeOf<Instance.InstanceStatus>()
+
+const optionShapedFactory = Instance.define((parameters?: { timeout?: number }) => ({
+  name: 'option-shaped-parameters',
+  host: 'localhost',
+  port: parameters?.timeout ?? 3000,
+  async start() {},
+  async stop() {},
+}))
+expectTypeOf(optionShapedFactory({ timeout: 4000 }).port).toBeNumber()
+expectTypeOf(optionShapedFactory(undefined, { timeout: 1000 }).port).toBeNumber()
+
+const parameterlessFactory = Instance.define(() => ({
+  name: 'parameterless',
+  host: 'localhost',
+  port: 3000,
+  async start() {},
+  async stop() {},
+}))
+expectTypeOf(parameterlessFactory(undefined, { messageBuffer: 1 }).port).toBeNumber()
+// @ts-expect-error Parameterless definitions receive lifecycle options in the second argument.
+parameterlessFactory({ timeout: 1000 })
+
+const requiredFactory = Instance.define((parameters: { port: number }) => ({
+  name: 'required-parameters',
+  host: 'localhost',
+  port: parameters.port,
+  async start() {},
+  async stop() {},
+}))
+// @ts-expect-error Required definition parameters cannot be omitted.
+requiredFactory()

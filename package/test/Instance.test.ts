@@ -66,6 +66,34 @@ describe('Instance', () => {
       expect(inst.port).toBe(4000);
     });
 
+    it('never guesses option-shaped parameters', async () => {
+      const factory = Instance.define((parameters?: {
+        messageBuffer?: number;
+        timeout?: number;
+      }) => ({
+        name: 'explicit-arguments',
+        host: 'localhost',
+        port: parameters?.timeout ?? 3000,
+        parameterMessageBuffer: parameters?.messageBuffer,
+        async start(_opts, { emitter }) {
+          emitter.emit('message', 'first');
+          emitter.emit('message', 'second');
+          emitter.emit('listening', undefined);
+        },
+        async stop() {},
+      }));
+
+      const inst = factory(
+        { timeout: 4000, messageBuffer: 99 },
+        { messageBuffer: 1 },
+      );
+      await inst.start();
+
+      expect(inst.port).toBe(4000);
+      expect(inst.parameterMessageBuffer).toBe(99);
+      expect(inst.messages.get()).toEqual(['second']);
+    });
+
     it('preserves extra property descriptors from the definition', () => {
       let value = 1;
       const instance = Instance.define(() => ({
@@ -253,7 +281,7 @@ describe('Instance', () => {
         },
       }));
 
-      const inst = instance({ timeout: 50 });
+      const inst = instance(undefined, { timeout: 50 });
       const startOperation = inst.start();
       const startFailure = expect(startOperation).rejects.toThrow('failed to start in time');
       await vi.advanceTimersByTimeAsync(50);
@@ -288,7 +316,7 @@ describe('Instance', () => {
         },
       }));
 
-      const inst = instance({ timeout: 20 });
+      const inst = instance(undefined, { timeout: 20 });
       const startOperation = inst.start();
       const startFailure = expect(startOperation).rejects.toThrow('failed to start in time');
       await vi.advanceTimersByTimeAsync(20);
@@ -323,7 +351,7 @@ describe('Instance', () => {
         },
       }));
 
-      const inst = instance({ timeout: 20 });
+      const inst = instance(undefined, { timeout: 20 });
       const startOperation = inst.start();
       const startFailure = expect(startOperation).rejects.toThrow('failed to start in time');
       await vi.advanceTimersByTimeAsync(20);
@@ -372,7 +400,7 @@ describe('Instance', () => {
         },
       }));
 
-      const inst = instance({ timeout: 20 });
+      const inst = instance(undefined, { timeout: 20 });
       await inst.start();
       const stopOperation = inst.stop();
       const stopFailure = expect(stopOperation).rejects.toThrow('failed to stop in time');
@@ -449,7 +477,7 @@ describe('Instance', () => {
         async stop() {},
       }));
 
-      const inst = instance({ messageBuffer: 3 });
+      const inst = instance(undefined, { messageBuffer: 3 });
       await inst.start();
 
       expect(inst.messages.get()).toEqual(['msg-7', 'msg-8', 'msg-9']);
@@ -510,7 +538,7 @@ describe('Instance', () => {
         async stop() {},
       }));
 
-      const inst = instance({ timeout: 100 });
+      const inst = instance(undefined, { timeout: 100 });
       await expect(inst.start()).rejects.toThrow('failed to start in time');
     });
   });
