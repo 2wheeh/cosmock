@@ -8,9 +8,9 @@ import { Instance, findFreePorts, EVMD_DEFAULT_IMAGE } from '../src/index.js';
  * the container path end to end against the same genesis patching (precompiles,
  * denom metadata, app mempool) the binary runtime uses.
  *
- * The configured image is pulled from GHCR on first use (anonymous pull — the
- * package is public), so CI doubles as a live check that the staged version tag
- * or released digest actually boots.
+ * The image is digest-pinned and pulled from GHCR on first use (anonymous pull
+ * — the package is public), so this doubles as a live check that the published
+ * artifact actually boots.
  */
 
 const TEST_MNEMONIC =
@@ -42,7 +42,7 @@ async function ethRpc(method: string, params: unknown[] = []) {
   return (await res.json()) as { result: string };
 }
 
-describe('evmd (container runtime, configured image)', () => {
+describe('evmd (container runtime, published image)', () => {
   it('defaults to the starskiff-published evmd image', () => {
     expect(EVMD_DEFAULT_IMAGE).toMatch(/^ghcr\.io\/2wheeh\/starskiff\/evmd[:@]/);
   });

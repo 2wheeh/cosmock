@@ -89,9 +89,8 @@ export default async function setup({ provide }: TestProject) {
   });
 
   const evmd = Instance.evmd({
-    // Default image lane: EVMD_DEFAULT_IMAGE is staged by version tag and
-    // pinned by digest after publish, so the harness runs the exact configured
-    // artifact like every other image-backed chain.
+    // Default image lane: EVMD_DEFAULT_IMAGE is published to GHCR and pinned
+    // by digest, so the harness runs it like every other image-backed chain.
     rpcPort: 27157,
     grpcPort: 9590,
     apiPort: 1817,
