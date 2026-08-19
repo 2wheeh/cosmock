@@ -71,6 +71,7 @@ describe('normalizeActiveStaticPrecompiles', () => {
     const result = normalizeActiveStaticPrecompiles(MAROO_DEFAULT_PRECOMPILES);
 
     expect(result).toContain('0x100000000000000000000000000000000000000A');
+    expect(result).toContain('0x100000000000000000000000000000000000000b');
     expect(result).not.toContain('0x100000000000000000000000000000000000000a');
 
     // Go's `slices.IsSorted` on the stored strings == plain ascending order.
