@@ -8,18 +8,12 @@ importers:
 
   .:
     devDependencies:
-      '@arethetypeswrong/cli':
-        specifier: 0.18.5
-        version: 0.18.5
       '@changesets/changelog-github':
         specifier: ^0.6.0
         version: 0.6.0
       '@changesets/cli':
         specifier: ^2.30.0
         version: 2.31.0(@types/node@25.5.0)
-      publint:
-        specifier: 0.3.24
-        version: 0.3.24
 
   docs:
     dependencies:
@@ -67,6 +61,9 @@ importers:
         specifier: ^1.0.4
         version: 1.0.4
     devDependencies:
+      '@arethetypeswrong/cli':
+        specifier: 0.18.5
+        version: 0.18.5
       '@cosmjs/cosmwasm-stargate':
         specifier: ^0.38.1
         version: 0.38.1
@@ -82,6 +79,9 @@ importers:
       cosmjs-types:
         specifier: ^0.11.0
         version: 0.11.0
+      publint:
+        specifier: 0.3.24
+        version: 0.3.24
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
