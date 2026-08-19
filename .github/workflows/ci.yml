@@ -34,6 +34,12 @@ jobs:
       - name: Build & Type check
         run: pnpm check
 
+      - name: Packed-package acceptance
+        run: pnpm test:package
+
+      - name: Smoke ESM export
+        run: node --input-type=module --eval "await import('./package/dist/index.js')"
+
       - name: Unit & Smoke tests
         run: pnpm test:unit
 

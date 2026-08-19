@@ -21,7 +21,8 @@
     "check": "tsc -b",
     "test": "vitest",
     "test:unit": "vitest run --project unit",
-    "test:integration": "vitest run --project integration"
+    "test:integration": "vitest run --project integration",
+    "test:package": "pnpm build && publint --strict --level warning && attw --pack . --profile esm-only --no-definitely-typed"
   },
   "keywords": [
     "cosmos",
@@ -49,11 +50,13 @@
     "tinyexec": "^1.0.4"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
     "@cosmjs/cosmwasm-stargate": "^0.38.1",
     "@cosmjs/proto-signing": "^0.38.1",
     "@cosmjs/stargate": "^0.38.1",
     "@types/node": "^25.5.0",
     "cosmjs-types": "^0.11.0",
+    "publint": "0.3.24",
     "typescript": "^6.0.2",
     "viem": "^2.55.0",
     "vitest": "^4.1.2"
