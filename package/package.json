@@ -21,7 +21,8 @@
     "check": "tsc -b",
     "test": "vitest",
     "test:unit": "vitest run --project unit",
-    "test:integration": "vitest run --project integration"
+    "test:integration": "vitest run --project integration",
+    "test:package": "pnpm build && node ../scripts/test-packed-package.mjs"
   },
   "keywords": [
     "cosmos",

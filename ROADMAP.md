@@ -45,7 +45,7 @@
 - [x] Gate publishing on Node 22 and 24 checks, docs, integration, and feature tests
 - [x] Verify downloaded Hermes assets with a pinned SHA-256 checksum
 - [ ] Pin third-party GitHub Actions to reviewed commit SHAs
-- [ ] Add packed-package acceptance tests for the ESM export and type surface
+- [x] Add packed-package acceptance tests for the ESM export and type surface
 - [ ] Upgrade the docs stack and clear production dependency advisories
 - [ ] Configure the documentation base URL and sitemap generation
 - [ ] Publish v1.0 after the public API and artifact policy are stable
