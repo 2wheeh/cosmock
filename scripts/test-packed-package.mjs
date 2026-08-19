@@ -42,6 +42,31 @@ try {
   assert.equal(tarballs.length, 1, `expected one packed tarball, found: ${tarballs.join(', ')}`)
   const tarballPath = path.join(artifactsDirectory, tarballs[0])
 
+  // Analyze the same artifact the consumer smoke tests below load. publint
+  // covers package metadata/files/module format; ATTW covers TypeScript
+  // resolution across the supported ESM consumer modes. Starskiff is
+  // intentionally ESM-only, so CJS resolution failures are out of scope.
+  run(
+    PNPM,
+    ['exec', 'publint', tarballPath, '--strict', '--level', 'warning'],
+    ROOT,
+  )
+  run(
+    PNPM,
+    [
+      'exec',
+      'attw',
+      tarballPath,
+      '--profile',
+      'esm-only',
+      '--no-definitely-typed',
+      '--no-color',
+      '--no-emoji',
+      '--no-summary',
+    ],
+    ROOT,
+  )
+
   const installedPackageDirectory = path.join(consumerDirectory, 'node_modules', 'starskiff')
   mkdirSync(installedPackageDirectory, { recursive: true })
   run(
