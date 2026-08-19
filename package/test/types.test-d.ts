@@ -1,11 +1,18 @@
 import {
   Instance,
+  cosmosBase,
+  cosmosEvmBase,
+  type BinaryInstanceSource,
   type CosmosBaseParameters,
+  type CosmosChainParameters,
   type CosmosEvmBaseParameters,
   type CosmosEvmChainParameters,
   type CosmosRuntimeOptions,
+  type ImageInstanceSource,
+  type InstanceSource,
   type MaroodParameters,
   type MaroodPrivacyZkArtifacts,
+  type OptionalInstanceSource,
 } from '../src/index.js'
 import { expectTypeOf } from 'vitest'
 
@@ -45,6 +52,84 @@ const privacyZkArtifacts: MaroodPrivacyZkArtifacts = {
 }
 const maroodChain = Instance.marood({ image: 'maroo:local', privacyZkArtifacts })
 expectTypeOf(maroodChain.evmUrl).toBeString()
+
+// High-level instance sources are mutually exclusive. Image-backed wrappers
+// can use their default, or accept exactly one explicit override.
+const imageSource: ImageInstanceSource = { image: 'registry/chain:v1' }
+const binarySource: BinaryInstanceSource = { binary: 'chaind' }
+const requiredImageSource: InstanceSource = imageSource
+const requiredBinarySource: InstanceSource = binarySource
+const inheritedSource: OptionalInstanceSource = {}
+expectTypeOf(requiredImageSource.image).toBeString()
+expectTypeOf(requiredBinarySource.binary).toBeString()
+expectTypeOf(inheritedSource).toMatchTypeOf<OptionalInstanceSource>()
+
+Instance.simd()
+Instance.simd({})
+Instance.simd({ image: 'registry/simd:v1' })
+Instance.simd({ binary: 'simd' })
+Instance.wasmd({ image: 'registry/wasmd:v1' })
+Instance.gaiad({ binary: 'gaiad' })
+Instance.xplad({ image: 'registry/xplad:v1' })
+Instance.xrplevm({ binary: 'exrpd' })
+Instance.mantra({ image: 'registry/mantra:v1' })
+Instance.evmd({ binary: 'evmd' })
+
+// @ts-expect-error A source is required when there is no built-in default.
+const missingRequiredSource: InstanceSource = {}
+// @ts-expect-error An image and binary cannot select two runtimes at once.
+const conflictingSource: InstanceSource = { image: 'registry/chain:v1', binary: 'chaind' }
+// @ts-expect-error Default-image wrappers still reject conflicting overrides.
+Instance.simd({ image: 'registry/simd:v1', binary: 'simd' })
+// @ts-expect-error Every shipped default-image wrapper uses the same exclusive source contract.
+Instance.wasmd({ image: 'registry/wasmd:v1', binary: 'wasmd' })
+// @ts-expect-error Every shipped default-image wrapper uses the same exclusive source contract.
+Instance.gaiad({ image: 'registry/gaiad:v1', binary: 'gaiad' })
+// @ts-expect-error Every shipped default-image wrapper uses the same exclusive source contract.
+Instance.xplad({ image: 'registry/xplad:v1', binary: 'xplad' })
+// @ts-expect-error Every shipped default-image wrapper uses the same exclusive source contract.
+Instance.xrplevm({ image: 'registry/xrplevm:v1', binary: 'exrpd' })
+// @ts-expect-error Every shipped default-image wrapper uses the same exclusive source contract.
+Instance.mantra({ image: 'registry/mantra:v1', binary: 'mantrachaind' })
+// @ts-expect-error Every shipped default-image wrapper uses the same exclusive source contract.
+Instance.evmd({ image: 'registry/evmd:v1', binary: 'evmd' })
+
+Instance.marood({ image: 'registry/marood:v1' })
+Instance.marood({ binary: 'marood', network: 'mainnet' }, { timeout: 30_000 })
+// @ts-expect-error marood has no default source.
+Instance.marood()
+// @ts-expect-error Other marood parameters do not replace its required source.
+Instance.marood({ network: 'testnet' })
+// @ts-expect-error marood also rejects conflicting sources.
+Instance.marood({ image: 'registry/marood:v1', binary: 'marood' })
+
+// Low-level builders keep `binary` as the executable name even for an image,
+// so custom definitions can continue supplying both fields internally.
+const customCosmos = cosmosBase({
+  name: 'custom-cosmos',
+  binary: 'customd',
+  image: 'registry/customd:v1',
+})
+const customEvm = cosmosEvmBase({
+  name: 'custom-evm',
+  binary: 'customevmd',
+  image: 'registry/customevmd:v1',
+})
+expectTypeOf(customCosmos.rpcUrl).toBeString()
+expectTypeOf(customEvm.evmUrl).toBeString()
+
+type CustomChainParameters =
+  & Omit<CosmosChainParameters, 'image'>
+  & OptionalInstanceSource
+const customChain = Instance.define((parameters?: CustomChainParameters) => {
+  const { binary = 'customd', image, ...rest } = parameters || {}
+  return cosmosBase({ binary, image, name: 'custom', ...rest })
+})
+customChain()
+customChain({ image: 'registry/customd:v1' })
+customChain({ binary: 'customd' })
+// @ts-expect-error Custom wrappers can reuse the exclusive public source type.
+customChain({ image: 'registry/customd:v1', binary: 'customd' })
 
 // Plain define without extras — no extra fields
 const plain = Instance.define(() => ({

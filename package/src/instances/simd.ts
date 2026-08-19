@@ -1,6 +1,7 @@
 import * as Instance from '../Instance.js'
 import { cosmosBase, type CosmosChainParameters } from '../cosmos.js'
 import { resolveInstanceImage } from '../docker.js'
+import type { OptionalInstanceSource } from '../source.js'
 
 /**
  * Official Cosmos SDK simapp image. Pinned to a MINOR line (`v0.53`), not a
@@ -10,14 +11,7 @@ import { resolveInstanceImage } from '../docker.js'
  */
 export const SIMD_DEFAULT_IMAGE = 'ghcr.io/cosmos/simapp:v0.53'
 
-export type SimdParameters = CosmosChainParameters & {
-  /**
-   * Run from a local `simd` binary on `PATH` instead of the image.
-   * Passing this at all opts out of the container runtime.
-   * @default "simd" (only when opted in)
-   */
-  binary?: string
-}
+export type SimdParameters = Omit<CosmosChainParameters, 'image'> & OptionalInstanceSource
 
 /**
  * Defines a simd (Cosmos SDK simapp) instance.

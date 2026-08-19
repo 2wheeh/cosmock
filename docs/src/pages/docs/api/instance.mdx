@@ -25,6 +25,14 @@ Shared by all Cosmos chain instances (`CosmosChainParameters`):
 | `relayerHints`     | `CosmosRelayerHints` | instance-specific | Hermes address-derivation hints             |
 | `image`            | `string`          | instance-specific | Run the node from a container image instead of a `PATH` binary — see the [container runtime](/docs/guides/docker) |
 
+High-level chain wrappers accept `image` or `binary`, never both. Wrappers with
+a default image allow neither; `marood`, which has no distributable default,
+requires exactly one. These public source contracts are also exported as
+`ImageInstanceSource`, `BinaryInstanceSource`, `InstanceSource`, and
+`OptionalInstanceSource` for custom wrappers. Low-level `cosmosBase` and
+`cosmosEvmBase` parameters remain separate: their `binary` names the executable
+inside an optional image as well as on the host.
+
 EVM chains (`CosmosEvmChainParameters`) add:
 
 | Parameter                 | Type       | Default | Description                                       |

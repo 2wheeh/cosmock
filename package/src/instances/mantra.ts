@@ -1,6 +1,7 @@
 import * as Instance from '../Instance.js'
 import { cosmosEvmBase, type CosmosEvmChainParameters, type Genesis } from '../cosmos.js'
 import { resolveInstanceImage } from '../docker.js'
+import type { OptionalInstanceSource } from '../source.js'
 
 /**
  * Official MANTRA chain image, pinned to the version running on mainnet
@@ -25,13 +26,7 @@ export const MANTRA_DEFAULT_PRECOMPILES: readonly string[] = [
   '0x0000000000000000000000000000000000000a01', // MANTRA app-side precompile
 ]
 
-export type MantraParameters = CosmosEvmChainParameters & {
-  /**
-   * Run from a local `mantrachaind` binary on `PATH` instead of the image.
-   * Passing this at all opts out of the container runtime.
-   * @default "mantrachaind" (only when opted in)
-   */
-  binary?: string
+export type MantraParameters = Omit<CosmosEvmChainParameters, 'image'> & OptionalInstanceSource & {
   /** EIP-155 EVM chain id, exposed as `eth_chainId`. @default 5888 (mainnet) */
   evmChainId?: number
   /** Chain-specific genesis patch, chained after mantra's defaults. */

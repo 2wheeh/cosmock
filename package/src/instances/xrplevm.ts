@@ -1,6 +1,7 @@
 import * as Instance from '../Instance.js'
 import { cosmosEvmBase, type CosmosEvmChainParameters, type Genesis } from '../cosmos.js'
 import { resolveInstanceImage } from '../docker.js'
+import type { OptionalInstanceSource } from '../source.js'
 
 /**
  * Official XRPL EVM node image (published by Peersyst, the chain's dev shop),
@@ -28,13 +29,7 @@ export const XRPLEVM_DEFAULT_PRECOMPILES: readonly string[] = [
   '0x0000000000000000000000000000000000000805', // Gov
 ]
 
-export type XrplevmParameters = CosmosEvmChainParameters & {
-  /**
-   * Run from a local `exrpd` binary on `PATH` instead of the image.
-   * Passing this at all opts out of the container runtime.
-   * @default "exrpd" (only when opted in)
-   */
-  binary?: string
+export type XrplevmParameters = Omit<CosmosEvmChainParameters, 'image'> & OptionalInstanceSource & {
   /** EVM JSON-RPC chain ID, independent of the Cosmos chain ID. @default derived from `chainId`, then 1440000 */
   evmChainId?: number
   /** Chain-specific genesis patch, chained after xrplevm's defaults. */

@@ -57,11 +57,14 @@ describe('resolveInstanceImage (default artifact policy)', () => {
 // no implicit binary fallback.
 describe('injection-required instances', () => {
   it('marood throws without an injected image or binary', () => {
+    // @ts-expect-error Runtime validation remains for JavaScript callers.
     expect(() => Instance.marood()).toThrow(/no default image/)
+    // @ts-expect-error Network options do not replace the required runtime source.
     expect(() => Instance.marood({ network: 'mainnet' })).toThrow(/no default image/)
   })
 
   it('an explicitly-undefined binary does not bypass required injection', () => {
+    // @ts-expect-error Runtime validation remains for JavaScript callers.
     expect(() => Instance.marood({ binary: undefined })).toThrow(/non-empty/)
   })
 

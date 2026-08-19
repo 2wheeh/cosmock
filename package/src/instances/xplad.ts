@@ -1,6 +1,7 @@
 import * as Instance from '../Instance.js'
 import { cosmosEvmBase, type CosmosEvmChainParameters, type Genesis } from '../cosmos.js'
 import { resolveInstanceImage } from '../docker.js'
+import type { OptionalInstanceSource } from '../source.js'
 
 /**
  * Default active static precompiles for xplad.
@@ -28,13 +29,7 @@ export const XPLA_DEFAULT_PRECOMPILES: readonly string[] = [
  */
 export const XPLA_DEFAULT_IMAGE = 'ghcr.io/xpladev/xpla:v1.10.0'
 
-export type XpladParameters = CosmosEvmChainParameters & {
-  /**
-   * Run from a local `xplad` binary on `PATH` instead of the image.
-   * Passing this at all opts out of the container runtime.
-   * @default "xplad" (only when opted in)
-   */
-  binary?: string
+export type XpladParameters = Omit<CosmosEvmChainParameters, 'image'> & OptionalInstanceSource & {
   /** Chain-specific genesis patch, chained after xplad's defaults. */
   patchGenesis?: (genesis: Genesis) => Genesis
 }

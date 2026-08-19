@@ -32,7 +32,7 @@ Inspired by [prool](https://github.com/wevm/prool) (test instances for Ethereum)
 | `Instance.marood()` | **required** — `image` or `binary` (private) | Cosmos SDK + **EVM** + maroo modules      | maroo chain (viem `marooTestnet`) |
 | `Instance.hermes()` | binary `hermes`                        | — (IBC relayer)                                 | Relaying between two instances |
 
-Every instance is **image-first**: where a usable, version-pinned image exists it's the default (Docker required); pass `binary` to run a local executable, or `image` to bind your own. Where none exists (`marood` — private node source) the source is **required**: constructing without `image` or `binary` throws. `hermes` is a relayer run as a host binary, not a chain node. See the docs [container runtime guide](./../docs/src/pages/docs/guides/docker.mdx).
+Every instance is **image-first**: where a usable, version-pinned image exists it's the default (Docker required); pass `binary` to run a local executable, or `image` to bind your own. The two overrides are mutually exclusive in TypeScript and at runtime. Where none exists (`marood` — private node source) exactly one source is **required** by its TypeScript signature, with runtime validation retained for JavaScript callers. `hermes` is a relayer run as a host binary, not a chain node. See the docs [container runtime guide](./../docs/src/pages/docs/guides/docker.mdx).
 
 > `evmd`'s default image is built from cosmos/evm source by the `publish-images` workflow and pinned by multi-arch manifest **digest** — the default always resolves to the exact published artifact.
 
