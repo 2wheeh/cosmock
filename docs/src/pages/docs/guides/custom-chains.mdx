@@ -5,21 +5,32 @@ Any Cosmos SDK binary that follows the standard `init` → `genesis` → `start`
 ## Minimal instance
 
 ```ts
-import { Instance, cosmosBase, type CosmosChainParameters } from 'starskiff';
+import {
+  Instance,
+  cosmosBase,
+  type CosmosChainParameters,
+  type OptionalInstanceSource,
+} from 'starskiff';
 
-export type MychaindParameters = CosmosChainParameters & {
-  binary?: string;
-};
+export type MychaindParameters =
+  & Omit<CosmosChainParameters, 'image'>
+  & OptionalInstanceSource;
 
 export const mychaind = Instance.define((parameters?: MychaindParameters) => {
-  const { binary = 'mychaind', ...rest } = parameters || {};
-  return cosmosBase({ binary, name: 'mychaind', ...rest });
+  const { binary = 'mychaind', image, ...rest } = parameters || {};
+  return cosmosBase({ binary, image, name: 'mychaind', ...rest });
 });
 
 const instance = mychaind({ chainId: 'my-1', denom: 'umych' });
 ```
 
 `cosmosBase` handles the full boot flow: `init` → genesis denom patching → key creation + account funding → `gentx` / `collect-gentxs` → config.toml/app.toml port patching → `start` → health-polling until the first block.
+
+`OptionalInstanceSource` makes the wrapper's `image` and `binary` overrides
+mutually exclusive while allowing neither, which uses its built-in `mychaind`
+binary. Use `InstanceSource` instead when a custom wrapper has no default and
+must require exactly one source. `cosmosBase` itself still receives both an
+optional image and the executable name to invoke inside that image.
 
 ## Patching genesis
 

@@ -4,6 +4,7 @@ import * as Instance from '../Instance.js'
 import { cosmosEvmBase, type CosmosEvmChainParameters, type Genesis } from '../cosmos.js'
 import { resolveInstanceImage } from '../docker.js'
 import type { RuntimeOptions } from '../runtime.js'
+import type { InstanceSource } from '../source.js'
 import { MAROO_PREINSTALLS, type EvmPreinstall } from './marood-preinstalls.js'
 
 export type { EvmPreinstall }
@@ -121,15 +122,7 @@ export type MaroodPrivacyZkArtifacts =
       directory: string
     }
 
-export type MaroodParameters = CosmosEvmChainParameters & {
-  /**
-   * Run from a local `marood` binary on `PATH`.
-   * marood's node source is private, so there is no default image — either
-   * this or `image` (e.g. a private image allowed in your CI) is required.
-   * (When `image` is passed instead, the executable inside the image is
-   * assumed to be named `marood`.)
-   */
-  binary?: string
+export type MaroodParameters = Omit<CosmosEvmChainParameters, 'image'> & InstanceSource & {
   /**
    * External Privacy ZK artifacts required by maroo v0.8+.
    *
@@ -389,7 +382,7 @@ export function patchMaroodGenesis(genesis: Genesis, opts: PatchMaroodGenesisOpt
  * await instance.stop()
  * ```
  */
-export const marood = Instance.define((parameters?: MaroodParameters) => {
+export const marood = Instance.define((parameters: MaroodParameters) => {
   const params = parameters || {}
   const preset = MAROO_NETWORKS[params.network ?? 'testnet']
   const {

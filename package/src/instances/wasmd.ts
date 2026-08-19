@@ -1,6 +1,7 @@
 import * as Instance from '../Instance.js'
 import { cosmosBase, type CosmosChainParameters } from '../cosmos.js'
 import { resolveInstanceImage } from '../docker.js'
+import type { OptionalInstanceSource } from '../source.js'
 
 /**
  * Official CosmWasm image, pinned to an exact release tag (CosmWasm publishes
@@ -9,14 +10,7 @@ import { resolveInstanceImage } from '../docker.js'
  */
 export const WASMD_DEFAULT_IMAGE = 'cosmwasm/wasmd:v0.61.14'
 
-export type WasmdParameters = CosmosChainParameters & {
-  /**
-   * Run from a local `wasmd` binary on `PATH` instead of the image.
-   * Passing this at all opts out of the container runtime.
-   * @default "wasmd" (only when opted in)
-   */
-  binary?: string
-}
+export type WasmdParameters = Omit<CosmosChainParameters, 'image'> & OptionalInstanceSource
 
 /**
  * Defines a wasmd (CosmWasm) instance.

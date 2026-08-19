@@ -38,9 +38,14 @@ Instance.simd({ image: 'my-registry/simd:custom' });
 Instance.simd({ binary: 'simd' });
 ```
 
-Naming a `binary` opts out of the container runtime entirely.
+Naming a `binary` opts out of the container runtime entirely. The two choices
+are mutually exclusive: TypeScript rejects calls that pass both `image` and
+`binary`, and the runtime keeps the same validation for JavaScript callers.
 
-For instances with **no default image** ([`marood`](/docs/chains)) these aren't overrides but a requirement: constructing one without `image` or `binary` throws.
+For instances with **no default image** ([`marood`](/docs/chains)) these aren't
+overrides but a requirement. TypeScript requires exactly one when constructing
+the instance, while JavaScript callers get the same fail-fast runtime error if
+they omit both.
 
 ```ts
 Instance.marood({ image: 'my-registry/marood:private' }); // or { binary: 'marood' }

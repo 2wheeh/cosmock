@@ -1,6 +1,7 @@
 import * as Instance from '../Instance.js'
 import { cosmosBase, type CosmosChainParameters } from '../cosmos.js'
 import { resolveInstanceImage } from '../docker.js'
+import type { OptionalInstanceSource } from '../source.js'
 
 /**
  * Official Cosmos Hub image, pinned to the version running on mainnet
@@ -8,14 +9,7 @@ import { resolveInstanceImage } from '../docker.js'
  */
 export const GAIAD_DEFAULT_IMAGE = 'ghcr.io/cosmos/gaia:v27.5.0'
 
-export type GaiadParameters = CosmosChainParameters & {
-  /**
-   * Run from a local `gaiad` binary on `PATH` instead of the image.
-   * Passing this at all opts out of the container runtime.
-   * @default "gaiad" (only when opted in)
-   */
-  binary?: string
-}
+export type GaiadParameters = Omit<CosmosChainParameters, 'image'> & OptionalInstanceSource
 
 /**
  * Defines a gaiad (Cosmos Hub) instance.

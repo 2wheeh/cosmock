@@ -1,6 +1,7 @@
 import * as Instance from '../Instance.js'
 import { cosmosEvmBase, type CosmosEvmChainParameters, type Genesis } from '../cosmos.js'
 import { resolveInstanceImage } from '../docker.js'
+import type { OptionalInstanceSource } from '../source.js'
 
 /**
  * Default active static precompiles for evmd.
@@ -38,13 +39,7 @@ export const EVMD_DEFAULT_PRECOMPILES: readonly string[] = [
 export const EVMD_DEFAULT_IMAGE =
   'ghcr.io/2wheeh/starskiff/evmd@sha256:dbe4d2da5ebb5ea716f721d331932ec83ca7b74767702f8d58c000172a233672'
 
-export type EvmdParameters = CosmosEvmChainParameters & {
-  /**
-   * Run from a local `evmd` binary on `PATH` instead of the image.
-   * Passing this at all opts out of the container runtime.
-   * @default "evmd" (only when opted in)
-   */
-  binary?: string
+export type EvmdParameters = Omit<CosmosEvmChainParameters, 'image'> & OptionalInstanceSource & {
   /** Chain-specific genesis patch, chained after evmd's defaults. */
   patchGenesis?: (genesis: Genesis) => Genesis
 }
