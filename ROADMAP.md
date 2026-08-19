@@ -29,7 +29,7 @@
 - [x] Upgrade evmd to cosmos/evm v0.7.1, publish it, and pin the new manifest digest
 - [ ] Replace the floating simd minor tag with an explicit artifact policy
 - [ ] Add a default marood image if upstream publishes a distributable image
-- [ ] Remove or redefine the unused `binaries/latest` publishing lane
+- [x] Remove or redefine the unused `binaries/latest` publishing lane
 
 ## Test integrations
 
