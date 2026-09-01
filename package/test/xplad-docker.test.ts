@@ -31,7 +31,7 @@ afterAll(async () => {
 });
 
 describe('xplad (container runtime)', () => {
-  it('defaults to the official XPLA image', () => {
+  it('defaults to the starskiff image built from official XPLA binaries', () => {
     expect(XPLA_DEFAULT_IMAGE).toMatch(/^ghcr\.io\/2wheeh\/starskiff\/xplad[:@]/);
   });
 
