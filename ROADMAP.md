@@ -8,6 +8,7 @@
 - [x] Hide local-binary and Docker execution behind one cancellable internal adapter
 - [x] Apply runtime options to every Cosmos genesis and start command
 - [x] Reject node exits before readiness regardless of exit code
+- [x] Preserve startup failures with the active phase, logical command, and a bounded output tail
 - [ ] Make Hermes setup commands asynchronous, cancellable, and bounded by the instance timeout
 - [ ] Align Hermes telemetry readiness with its exposed endpoint
 - [ ] Fail early when required TOML keys drift from supported chain layouts
@@ -19,6 +20,7 @@
 - [x] Encode the `image` or `binary` choice in types as well as runtime validation
 - [x] Centralize Cosmos EVM chain ID handling while keeping wrapper defaults explicit
 - [x] Keep generic runtime options on custom-chain builders and out of high-level Instance parameters
+- [x] Make `start()` resolve without a redundant stop function and support `Symbol.asyncDispose`
 - [ ] Expose the Hermes connection and channel mapping created during setup
 - [ ] Stabilize the public API and document the v1 compatibility policy
 
