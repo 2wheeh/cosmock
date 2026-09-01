@@ -62,7 +62,7 @@ export function resolveInstanceImage(
 
 /** Container-runtime settings for an instance. */
 export type DockerOptions = {
-  /** Image reference, e.g. `ghcr.io/xpladev/xpla:v1.10.0`. */
+  /** Image reference, e.g. `ghcr.io/2wheeh/starskiff/xplad:v1.12.0`. */
   image: string
   /** Host directory bind mounted at {@link CONTAINER_HOME}. */
   homeDir: string

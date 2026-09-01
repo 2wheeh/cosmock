@@ -97,7 +97,7 @@ export type CosmosChainParameters = {
   relayerHints?: CosmosRelayerHints
   /**
    * Run the node from a container image instead of a binary on `PATH`
-   * (e.g. `"ghcr.io/xpladev/xpla:v1.10.0"`).
+   * (e.g. `"ghcr.io/2wheeh/starskiff/xplad:v1.12.0"`).
    *
    * Chains that publish an official image default to it — no Go toolchain, no
    * `go build`, and the image is the artifact the network itself ships. Docker
