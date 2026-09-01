@@ -24,20 +24,6 @@
         "linux/arm64"
       ],
       "note": "cgo-required (go-ethereum secp256k1); arm64 builds under QEMU"
-    },
-    {
-      "name": "xplad",
-      "repo": "xpladev/xpla",
-      "ref": "v1.12.0",
-      "commit": "f187194ce952fb7482ce4a2bb0162616d4ecf097",
-      "context": "images/xplad",
-      "image": "ghcr.io/2wheeh/starskiff/xplad",
-      "digest": "sha256:7c59d87f775f0fc8ec7b229e5346717964d187964e202b7fe633e11b0728a77f",
-      "platforms": [
-        "linux/amd64",
-        "linux/arm64"
-      ],
-      "note": "wraps official GitHub release binaries and verifies GitHub-published SHA-256 digests"
     }
   ]
 }

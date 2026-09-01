@@ -25,7 +25,7 @@ Inspired by [prool](https://github.com/wevm/prool) (test instances for Ethereum)
 | `Instance.wasmd()`  | image `cosmwasm/wasmd`                 | bank, staking, gov, mint, **IBC**, **CosmWasm** | Contract deploy/execute, IBC   |
 | `Instance.simd()`   | image `ghcr.io/cosmos/simapp`          | bank, staking, gov, mint                        | Lightweight Cosmos SDK testing |
 | `Instance.gaiad()`  | image `ghcr.io/cosmos/gaia`            | Cosmos Hub (IBC)                                | IBC counterparty chain         |
-| `Instance.xplad()`  | image `ghcr.io/2wheeh/starskiff/xplad` | Cosmos SDK + **EVM** + CosmWasm                 | XPLA testing, EVM JSON-RPC     |
+| `Instance.xplad()`  | image `ghcr.io/xpladev/xpla`           | Cosmos SDK + **EVM** + CosmWasm                 | XPLA testing, EVM JSON-RPC     |
 | `Instance.mantra()` | image `ghcr.io/mantra-chain/mantrachain` | Cosmos SDK + **EVM** + CosmWasm               | MANTRA testing (eth 5888)      |
 | `Instance.xrplevm()` | image `peersyst/exrp` (amd64-only)    | Cosmos SDK + **EVM** (cosmos/evm)               | XRPL EVM testing (eth 1440000) |
 | `Instance.evmd()`   | image `ghcr.io/2wheeh/starskiff/evmd`  | Cosmos SDK + **EVM** (cosmos/evm reference)     | Canonical cosmos-evm precompiles |
@@ -34,9 +34,7 @@ Inspired by [prool](https://github.com/wevm/prool) (test instances for Ethereum)
 
 Every instance is **image-first**: where a usable, version-pinned image exists it's the default (Docker required); pass `binary` to run a local executable, or `image` to bind your own. The two overrides are mutually exclusive in TypeScript and at runtime. Where none exists (`marood` — private node source) exactly one source is **required** by its TypeScript signature, with runtime validation retained for JavaScript callers. `hermes` is a relayer run as a host binary, not a chain node. See the docs [container runtime guide](./../docs/src/pages/docs/guides/docker.mdx).
 
-> Starskiff publishes `evmd` from pinned cosmos/evm source and packages `xplad`
-> from XPLA's checksummed official release binaries. Both defaults are pinned by
-> multi-arch manifest **digest** after publication.
+> `evmd`'s default image is built from cosmos/evm source by the `publish-images` workflow and pinned by multi-arch manifest **digest** — the default always resolves to the exact published artifact.
 
 ## Install
 

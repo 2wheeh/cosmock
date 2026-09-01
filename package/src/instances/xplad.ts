@@ -5,8 +5,10 @@ import type { OptionalInstanceSource } from '../source.js'
 
 /**
  * Default active static precompiles for xplad.
- * Mirrors XPLA mainnet's active precompile set, sorted ascending as required
- * by cosmos-evm genesis validation. Frozen by chain consensus.
+ * Mirrors `@xpla/evm` `PRECOMPILE_ADDRESSES` (v1.9.0; unchanged in v1.10.0 —
+ * the xpladev/evm diff between the two touches only mempool/server), sorted
+ * ascending as required by cosmos-evm genesis validation. Frozen by chain
+ * consensus.
  */
 export const XPLA_DEFAULT_PRECOMPILES: readonly string[] = [
   '0x0000000000000000000000000000000000000100', // P256
@@ -22,14 +24,10 @@ export const XPLA_DEFAULT_PRECOMPILES: readonly string[] = [
 ]
 
 /**
- * Image starskiff publishes from XPLA's official release binaries, pinned to
- * the patched v1.12.0 release. XPLA's own GHCR build is unavailable because
- * its security-patched EVM module is private; the starskiff build verifies
- * GitHub's SHA-256 digest for each official amd64/arm64 release asset before
- * packaging it.
+ * Official XPLA image, pinned to the version running on XPLA mainnet
+ * (`dimension_1-1`). Used unless the caller opts into a binary.
  */
-export const XPLA_DEFAULT_IMAGE =
-  'ghcr.io/2wheeh/starskiff/xplad@sha256:7c59d87f775f0fc8ec7b229e5346717964d187964e202b7fe633e11b0728a77f'
+export const XPLA_DEFAULT_IMAGE = 'ghcr.io/xpladev/xpla:v1.11.4'
 
 export type XpladParameters = Omit<CosmosEvmChainParameters, 'image'> & OptionalInstanceSource & {
   /** Chain-specific genesis patch, chained after xplad's defaults. */
@@ -43,11 +41,11 @@ export type XpladParameters = Omit<CosmosEvmChainParameters, 'image'> & Optional
  * The native denom uses 18 decimals (e.g. axpla), which requires
  * larger validator stake/balance than the cosmosBase defaults.
  *
- * This instance is container-first on a starskiff image that packages XPLA's
- * official release binary ({@link XPLA_DEFAULT_IMAGE}) — no Go toolchain or
- * manual build is needed. Docker must be running. The node still runs as a
- * plain child process under starskiff's own lifecycle; the image is only where
- * the node comes from.
+ * XPLA publishes an official image, so this instance is container-first: it
+ * runs {@link XPLA_DEFAULT_IMAGE} out of the box — no Go toolchain, no manual
+ * build, and the node is the exact artifact the network ships. Docker must be
+ * running. The node still runs as a plain child process under starskiff's own
+ * lifecycle; the image is only where the node comes from.
  *
  * @example
  * ```ts

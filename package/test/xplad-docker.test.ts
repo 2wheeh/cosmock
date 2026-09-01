@@ -31,8 +31,8 @@ afterAll(async () => {
 });
 
 describe('xplad (container runtime)', () => {
-  it('defaults to the starskiff image built from official XPLA binaries', () => {
-    expect(XPLA_DEFAULT_IMAGE).toMatch(/^ghcr\.io\/2wheeh\/starskiff\/xplad[:@]/);
+  it('defaults to the official XPLA image', () => {
+    expect(XPLA_DEFAULT_IMAGE).toMatch(/^ghcr\.io\/xpladev\/xpla:/);
   });
 
   it('produces blocks and serves Cosmos RPC on the published port', async () => {
